@@ -1,0 +1,1499 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>𓃥 白六管道積木</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Three.js 核心庫與 OrbitControls -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: none;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #0b0f19;
+            color: #f3f4f6;
+        }
+
+        #canvas-container {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        .glass-panel {
+            background: rgba(17, 24, 39, 0.88);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+    </style>
+</head>
+<body class="flex flex-col h-screen w-screen overflow-hidden select-none">
+
+    <!-- 3D WebGL Canvas -->
+    <div id="canvas-container"></div>
+
+    <!-- 頂部控制列 -->
+    <div class="relative z-10 p-3 flex justify-between items-center pointer-events-none">
+        <div class="glass-panel rounded-2xl px-3 py-2 flex items-center space-x-2 pointer-events-auto shadow-lg border border-white/10">
+            <div class="w-3 h-3 rounded-full bg-cyan-400 animate-pulse"></div>
+            <span class="font-bold text-xs tracking-wider text-cyan-200">𓃥 白六管道積木</span>
+        </div>
+
+        <div class="flex items-center space-x-2 pointer-events-auto">
+            <button id="btn-track-cam" class="glass-panel p-2.5 rounded-2xl text-purple-300 hover:text-white hover:bg-purple-500/20 active:scale-95 transition border border-purple-500/30 flex items-center space-x-1" title="追蹤攝影機">
+                <i data-lucide="video" class="w-5 h-5"></i>
+            </button>
+            <button id="btn-share-menu" class="glass-panel p-2.5 rounded-2xl text-cyan-300 hover:text-white hover:bg-white/10 active:scale-95 transition border border-cyan-500/30">
+                <i data-lucide="share-2" class="w-5 h-5"></i>
+            </button>
+            <button id="btn-toggle-shell" class="glass-panel p-2.5 rounded-2xl text-cyan-300 hover:text-white hover:bg-white/10 active:scale-95 transition border border-cyan-500/30">
+                <i data-lucide="eye" class="w-5 h-5"></i>
+            </button>
+            <button id="btn-reset-cam" class="glass-panel p-2.5 rounded-2xl text-gray-200 hover:text-white hover:bg-white/10 active:scale-95 transition">
+                <i data-lucide="camera" class="w-5 h-5"></i>
+            </button>
+            <button id="btn-clear-all" class="glass-panel p-2.5 rounded-2xl text-red-400 hover:text-red-300 hover:bg-red-500/10 active:scale-95 transition">
+                <i data-lucide="trash-2" class="w-5 h-5"></i>
+            </button>
+            <button id="btn-spawn-mode" class="glass-panel px-3 py-2 rounded-2xl text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 active:scale-95 transition flex items-center space-x-1.5 border border-amber-500/30">
+                <i data-lucide="circle-dot" class="w-4 h-4"></i>
+                <span class="text-xs font-semibold">放彈珠</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- 分享/載入彈出選單 -->
+    <div id="share-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm pointer-events-auto">
+        <div class="glass-panel rounded-3xl p-5 max-w-sm w-full border border-cyan-500/40 shadow-2xl bg-gray-900/95 flex flex-col space-y-4">
+            <div class="flex justify-between items-center border-b border-white/10 pb-3">
+                <div class="flex items-center space-x-2 text-cyan-300">
+                    <i data-lucide="share-2" class="w-5 h-5"></i>
+                    <span class="font-bold text-sm text-gray-100">分享與匯入𓃥 白六管道積木</span>
+                </div>
+                <button id="btn-close-modal" class="text-gray-400 hover:text-white">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <div class="flex flex-col space-y-2.5">
+                <button id="btn-copy-url" class="glass-panel p-3 rounded-2xl flex items-center justify-between hover:bg-cyan-500/20 active:scale-95 transition text-left">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-8 h-8 rounded-xl bg-cyan-500/20 border border-cyan-400/40 flex items-center justify-center text-cyan-300">
+                            <i data-lucide="link" class="w-4 h-4"></i>
+                        </div>
+                        <div>
+                            <div class="text-xs font-bold text-gray-100">複製分享連結</div>
+                            <div class="text-[9px] text-gray-400">開啟連結直接載入此組合</div>
+                        </div>
+                    </div>
+                    <i data-lucide="chevron-right" class="w-4 h-4 text-gray-400"></i>
+                </button>
+
+                <button id="btn-copy-json" class="glass-panel p-3 rounded-2xl flex items-center justify-between hover:bg-purple-500/20 active:scale-95 transition text-left">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-8 h-8 rounded-xl bg-purple-500/20 border border-purple-400/40 flex items-center justify-center text-purple-300">
+                            <i data-lucide="copy" class="w-4 h-4"></i>
+                        </div>
+                        <div>
+                            <div class="text-xs font-bold text-gray-100">複製 JSON 代碼</div>
+                            <div class="text-[9px] text-gray-400">匯出純文字積木結構資料</div>
+                        </div>
+                    </div>
+                    <i data-lucide="chevron-right" class="w-4 h-4 text-gray-400"></i>
+                </button>
+
+                <button id="btn-import-prompt" class="glass-panel p-3 rounded-2xl flex items-center justify-between hover:bg-emerald-500/20 active:scale-95 transition text-left">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center text-emerald-300">
+                            <i data-lucide="download" class="w-4 h-4"></i>
+                        </div>
+                        <div>
+                            <div class="text-xs font-bold text-gray-100">貼上代碼匯入</div>
+                            <div class="text-[9px] text-gray-400">載入他人分享的積木作品</div>
+                        </div>
+                    </div>
+                    <i data-lucide="chevron-right" class="w-4 h-4 text-gray-400"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 提示氣泡 -->
+    <div id="toast-msg" class="relative z-20 mx-auto -mt-1 opacity-0 transition-opacity duration-300 pointer-events-none max-w-xs text-center">
+        <div class="glass-panel px-3.5 py-1.5 rounded-full text-xs text-cyan-300 bg-cyan-950/80 border border-cyan-500/40 shadow-xl inline-flex items-center space-x-1.5">
+            <i data-lucide="info" class="w-4 h-4"></i>
+            <span id="toast-text">點右下角「積木鍵」選擇種類獨立新增</span>
+        </div>
+    </div>
+
+    <!-- 底部選取工具列 -->
+    <div id="bottom-toolbar" class="fixed bottom-6 left-3 z-20 transition-all duration-300 pointer-events-auto pr-20 hidden">
+        <div class="glass-panel rounded-3xl p-2 border border-cyan-500/40 shadow-2xl bg-gray-900/95 flex items-center space-x-2">
+            <div class="flex items-center space-x-1.5 pl-1">
+                <div class="w-7 h-7 rounded-xl bg-cyan-500/20 border border-cyan-400/40 flex items-center justify-center text-cyan-300">
+                    <i data-lucide="box" class="w-4 h-4"></i>
+                </div>
+                <div class="flex flex-col">
+                    <span id="toolbar-block-title" class="text-xs font-bold text-gray-100">已選取積木</span>
+                    <span class="text-[8px] text-gray-400">拖曳 3D 箭頭移動</span>
+                </div>
+            </div>
+
+            <div class="h-7 w-[1px] bg-white/10"></div>
+
+            <div class="flex items-center space-x-1">
+                <button id="btn-rot-x" class="glass-panel px-2.5 py-1.5 rounded-xl flex flex-col items-center justify-center bg-red-500/20 hover:bg-red-500/30 active:scale-95 text-red-300 border border-red-500/50">
+                    <span class="text-xs font-bold">X軸</span>
+                    <span class="text-[8px] text-red-200/70">90°</span>
+                </button>
+                <button id="btn-rot-y" class="glass-panel px-2.5 py-1.5 rounded-xl flex flex-col items-center justify-center bg-green-500/20 hover:bg-green-500/30 active:scale-95 text-green-300 border border-green-500/50">
+                    <span class="text-xs font-bold">Y軸</span>
+                    <span class="text-[8px] text-green-200/70">90°</span>
+                </button>
+                <button id="btn-rot-z" class="glass-panel px-2.5 py-1.5 rounded-xl flex flex-col items-center justify-center bg-blue-500/20 hover:bg-blue-500/30 active:scale-95 text-blue-300 border border-blue-500/50">
+                    <span class="text-xs font-bold">Z軸</span>
+                    <span class="text-[8px] text-blue-200/70">90°</span>
+                </button>
+            </div>
+
+            <button id="btn-delete-block" class="p-2 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/40 active:scale-95 transition">
+                <i data-lucide="trash-2" class="w-4 h-4"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- 右下角積木選單鍵 -->
+    <div class="fixed bottom-6 right-6 z-30 flex flex-col items-end pointer-events-auto">
+        <div id="block-type-menu" class="hidden glass-panel rounded-3xl p-2 mb-3 border border-cyan-500/30 shadow-2xl bg-gray-900/95 flex flex-col space-y-2 min-w-[170px]">
+            <div class="text-[10px] font-bold text-gray-400 px-2 py-0.5 border-b border-white/10 uppercase tracking-wider">選擇預設積木種類</div>
+
+            <button data-type="straight" class="type-opt-btn glass-panel p-2 rounded-2xl flex items-center space-x-3 hover:bg-cyan-500/20 active:scale-95 text-left transition">
+                <div class="w-8 h-8 rounded-xl bg-cyan-500/20 border border-cyan-400/40 flex items-center justify-center text-cyan-300">
+                    <i data-lucide="move-horizontal" class="w-4 h-4"></i>
+                </div>
+                <div>
+                    <div class="text-xs font-bold text-gray-100">直管積木</div>
+                    <div class="text-[9px] text-gray-400">對立面貫穿相通</div>
+                </div>
+            </button>
+
+            <button data-type="curved" class="type-opt-btn glass-panel p-2 rounded-2xl flex items-center space-x-3 hover:bg-pink-500/20 active:scale-95 text-left transition">
+                <div class="w-8 h-8 rounded-xl bg-pink-500/20 border border-pink-400/40 flex items-center justify-center text-pink-300">
+                    <i data-lucide="corner-down-right" class="w-4 h-4"></i>
+                </div>
+                <div>
+                    <div class="text-xs font-bold text-gray-100">彎管積木</div>
+                    <div class="text-[9px] text-gray-400">鄰接面 90° 彎曲</div>
+                </div>
+            </button>
+
+            <button data-type="cross" class="type-opt-btn glass-panel p-2 rounded-2xl flex items-center space-x-3 hover:bg-amber-500/20 active:scale-95 text-left transition">
+                <div class="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center text-amber-300">
+                    <i data-lucide="plus" class="w-4 h-4"></i>
+                </div>
+                <div>
+                    <div class="text-xs font-bold text-gray-100">十字管積木</div>
+                    <div class="text-[9px] text-gray-400">兩軸平面十字交叉</div>
+                </div>
+            </button>
+        </div>
+
+        <button id="btn-main-block" class="glass-panel w-16 h-16 rounded-3xl p-1 bg-gradient-to-br from-cyan-500/30 via-gray-800 to-purple-600/30 border-2 border-cyan-400/60 shadow-2xl flex flex-col items-center justify-center text-white active:scale-90 transition relative overflow-hidden group">
+            <div id="main-block-icon" class="text-cyan-300 mb-0.5">
+                <i data-lucide="move-horizontal" class="w-6 h-6"></i>
+            </div>
+            <span id="main-block-label" class="text-[10px] font-bold tracking-tight text-cyan-200">新增積木</span>
+        </button>
+    </div>
+
+    <script>
+        const GRID_SIZE = 10;
+        const CUBE_SIZE = 2.0;
+        const HALF_CUBE = CUBE_SIZE / 2;
+        const PIPE_RADIUS = 0.55;
+        const BALL_RADIUS = 0.32;
+        const GRAVITY = 9.82;
+
+        let scene, camera, renderer, controls;
+        let blocksMap = new Map();
+        let marbles = [];
+        let currentBlockType = 'straight';
+        let selectedBlockKey = null;
+        let lastPlacedBlockKey = null;
+        let isSpawnMode = false;
+        let isTrackCamMode = false;
+        let trackingMarble = null;
+        let isHideShell = false;
+        let ignoreTouchStartForTracking = false;
+
+        let openPortMarkers = [];
+        let customGizmoGroup = null;
+        let activeGizmoAxis = null;
+        let dragPlane = new THREE.Plane();
+        let planeIntersect = new THREE.Vector3();
+
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        let materials = {};
+
+        window.addEventListener('DOMContentLoaded', () => {
+            initThreeJS();
+            createGridFloor();
+            createCustomGizmo();
+            setupEvents();
+            setupUIControls();
+            if (window.lucide) lucide.createIcons();
+            
+            if (!loadFromUrlHash()) {
+                showToast("點右下角「積木鍵」選擇種類獨立新增");
+            }
+
+            animate();
+        });
+
+        function initThreeJS() {
+            const container = document.getElementById('canvas-container');
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0b0f19);
+            scene.fog = new THREE.FogExp2(0x0b0f19, 0.018);
+
+            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(12, 14, 16);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.shadowMap.enabled = true;
+            container.appendChild(renderer.domElement);
+
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.maxPolarAngle = Math.PI / 2 + 0.05;
+            controls.target.set(0, 1, 0);
+
+            controls.addEventListener('start', () => {
+                if (ignoreTouchStartForTracking) {
+                    ignoreTouchStartForTracking = false;
+                    return;
+                }
+                if (trackingMarble && isTrackCamMode) {
+                    stopCameraTracking();
+                }
+            });
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.9);
+            scene.add(ambientLight);
+
+            const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
+            dirLight.position.set(15, 25, 15);
+            dirLight.castShadow = true;
+            scene.add(dirLight);
+
+            materials.solidShell = new THREE.MeshStandardMaterial({
+                color: 0x1e293b,
+                roughness: 0.3,
+                metalness: 0.2,
+                depthWrite: true,
+                depthTest: true
+            });
+
+            materials.pipeStraight = new THREE.MeshStandardMaterial({ color: 0x38bdf8, emissive: 0x0284c7, emissiveIntensity: 0.4, roughness: 0.2, side: THREE.DoubleSide, transparent: true, opacity: 0.65, depthWrite: true });
+            materials.pipeCurved = new THREE.MeshStandardMaterial({ color: 0xf472b6, emissive: 0xdb2777, emissiveIntensity: 0.4, roughness: 0.2, side: THREE.DoubleSide, transparent: true, opacity: 0.65, depthWrite: true });
+            materials.pipeCross = new THREE.MeshStandardMaterial({ color: 0xfacc15, emissive: 0xca8a04, emissiveIntensity: 0.4, roughness: 0.2, side: THREE.DoubleSide, transparent: true, opacity: 0.65, depthWrite: true });
+            materials.portRing = new THREE.MeshBasicMaterial({ color: 0xf59e0b, depthWrite: true, depthTest: true });
+
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function createGridFloor() {
+            const gridHelper = new THREE.GridHelper(GRID_SIZE * CUBE_SIZE, GRID_SIZE, 0x38bdf8, 0x1e293b);
+            scene.add(gridHelper);
+
+            const planeGeo = new THREE.PlaneGeometry(GRID_SIZE * CUBE_SIZE, GRID_SIZE * CUBE_SIZE);
+            planeGeo.rotateX(-Math.PI / 2);
+            const groundMesh = new THREE.Mesh(planeGeo, new THREE.MeshBasicMaterial({ visible: false }));
+            groundMesh.name = "GROUND";
+            scene.add(groundMesh);
+        }
+
+        function createCustomGizmo() {
+            customGizmoGroup = new THREE.Group();
+
+            function makeArrow(color, rot) {
+                const group = new THREE.Group();
+                const cyl = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 1.2), new THREE.MeshBasicMaterial({ color, depthTest: false }));
+                cyl.position.y = 0.6;
+                const cone = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.4, 12), new THREE.MeshBasicMaterial({ color, depthTest: false }));
+                cone.position.y = 1.4;
+                group.add(cyl);
+                group.add(cone);
+                group.rotation.copy(rot);
+                return group;
+            }
+
+            const arrowX = makeArrow(0xef4444, new THREE.Euler(0, 0, -Math.PI / 2));
+            arrowX.userData = { axis: 'X' };
+            const arrowY = makeArrow(0x22c55e, new THREE.Euler(0, 0, 0));
+            arrowY.userData = { axis: 'Y' };
+            const arrowZ = makeArrow(0x3b82f6, new THREE.Euler(Math.PI / 2, 0, 0));
+            arrowZ.userData = { axis: 'Z' };
+
+            customGizmoGroup.add(arrowX);
+            customGizmoGroup.add(arrowY);
+            customGizmoGroup.add(arrowZ);
+
+            customGizmoGroup.visible = false;
+            customGizmoGroup.renderOrder = 999;
+            scene.add(customGizmoGroup);
+        }
+
+        function createBlockMesh(type) {
+            const group = new THREE.Group();
+            group.userData = { isBlockGroup: true };
+
+            const boxGeo = new THREE.BoxGeometry(CUBE_SIZE, CUBE_SIZE, CUBE_SIZE);
+            const glassMesh = new THREE.Mesh(boxGeo, materials.solidShell);
+            glassMesh.name = "GLASS_SHELL";
+            group.add(glassMesh);
+
+            const edges = new THREE.EdgesGeometry(boxGeo);
+            const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.4 }));
+            line.name = "GLASS_LINE";
+            group.add(line);
+
+            let pipeMat = materials.pipeStraight;
+            if (type === 'curved') pipeMat = materials.pipeCurved;
+            if (type === 'cross') pipeMat = materials.pipeCross;
+
+            if (type === 'straight') {
+                const cylGeo = new THREE.CylinderGeometry(PIPE_RADIUS, PIPE_RADIUS, CUBE_SIZE, 16, 1, true);
+                cylGeo.rotateX(Math.PI / 2);
+                const pipe = new THREE.Mesh(cylGeo, pipeMat);
+                pipe.name = "PIPE_BODY";
+                group.add(pipe);
+                createPortRing(group, 0, 0, HALF_CUBE, 0, 0, 0);
+                createPortRing(group, 0, 0, -HALF_CUBE, 0, Math.PI, 0);
+
+            } else if (type === 'curved') {
+                const curvePath = new THREE.CurvePath();
+                const arc = new THREE.QuadraticBezierCurve3(
+                    new THREE.Vector3(0, 0, HALF_CUBE),
+                    new THREE.Vector3(0, 0, 0),
+                    new THREE.Vector3(HALF_CUBE, 0, 0)
+                );
+                curvePath.add(arc);
+                const tubeGeo = new THREE.TubeGeometry(curvePath, 16, PIPE_RADIUS, 12, false);
+                const pipe = new THREE.Mesh(tubeGeo, pipeMat);
+                pipe.name = "PIPE_BODY";
+                group.add(pipe);
+                createPortRing(group, 0, 0, HALF_CUBE, 0, 0, 0);
+                createPortRing(group, HALF_CUBE, 0, 0, 0, Math.PI / 2, 0);
+
+            } else if (type === 'cross') {
+                const cyl1 = new THREE.CylinderGeometry(PIPE_RADIUS, PIPE_RADIUS, CUBE_SIZE, 16, 1, true);
+                const pipeX = new THREE.Mesh(cyl1, pipeMat);
+                pipeX.rotation.z = Math.PI / 2;
+                pipeX.name = "PIPE_BODY";
+                group.add(pipeX);
+
+                const cyl2 = new THREE.CylinderGeometry(PIPE_RADIUS, PIPE_RADIUS, CUBE_SIZE, 16, 1, true);
+                const pipeY = new THREE.Mesh(cyl2, pipeMat);
+                pipeY.name = "PIPE_BODY";
+                group.add(pipeY);
+
+                createPortRing(group, HALF_CUBE, 0, 0, 0, Math.PI / 2, 0);
+                createPortRing(group, -HALF_CUBE, 0, 0, 0, -Math.PI / 2, 0);
+                createPortRing(group, 0, HALF_CUBE, 0, -Math.PI / 2, 0, 0);
+                createPortRing(group, 0, -HALF_CUBE, 0, Math.PI / 2, 0, 0);
+            }
+
+            return group;
+        }
+
+        function createPortRing(parent, x, y, z, rotX, rotY, rotZ) {
+            const ring = new THREE.Mesh(new THREE.TorusGeometry(PIPE_RADIUS, 0.04, 8, 16), materials.portRing);
+            ring.position.set(x, y, z);
+            ring.rotation.set(rotX, rotY, rotZ);
+            ring.name = "PORT_RING";
+            parent.add(ring);
+        }
+
+        function spawnNewBlockImmediately(type) {
+            let targetGrid = { x: 5, y: 0, z: 5 };
+
+            if (lastPlacedBlockKey && blocksMap.has(lastPlacedBlockKey)) {
+                const lastBlock = blocksMap.get(lastPlacedBlockKey);
+                const ports = getBlockOpenWorldPorts(lastBlock);
+
+                for (let p of ports) {
+                    const candidateGrid = getNextGridPos(lastBlock.gridPos, p.dir);
+                    const candidateKey = `${candidateGrid.x},${candidateGrid.y},${candidateGrid.z}`;
+
+                    if (!blocksMap.has(candidateKey) && candidateGrid.x >= 0 && candidateGrid.x < GRID_SIZE && candidateGrid.z >= 0 && candidateGrid.z < GRID_SIZE && candidateGrid.y >= 0) {
+                        targetGrid = candidateGrid;
+                        break;
+                    }
+                }
+            }
+
+            if (isSpawnMode || isTrackCamMode) {
+                toggleSpawnMode(false);
+                toggleTrackCamMode(false);
+            }
+
+            placeBlock(targetGrid.x, targetGrid.y, targetGrid.z, type, new THREE.Euler(0, 0, 0), true);
+            showToast(`已新增 ${getBlockTypeName(type)} 並自動對齊管口`);
+        }
+
+        function placeBlock(gx, gy, gz, type, eulerRot = new THREE.Euler(0, 0, 0), autoAlign = false) {
+            const key = `${gx},${gy},${gz}`;
+            if (blocksMap.has(key)) removeBlockByKey(key);
+
+            if (autoAlign) {
+                eulerRot = findBestAlignmentRotation(gx, gy, gz, type);
+            }
+
+            const posX = (gx - GRID_SIZE / 2 + 0.5) * CUBE_SIZE;
+            const posY = (gy + 0.5) * CUBE_SIZE;
+            const posZ = (gz - GRID_SIZE / 2 + 0.5) * CUBE_SIZE;
+
+            const mesh = createBlockMesh(type);
+            mesh.position.set(posX, posY, posZ);
+            mesh.rotation.copy(eulerRot);
+
+            applyShellVisibility(mesh, isHideShell);
+            scene.add(mesh);
+
+            const blockData = {
+                mesh: mesh,
+                type: type,
+                gridPos: { x: gx, y: gy, z: gz },
+                box: new THREE.Box3().setFromCenterAndSize(new THREE.Vector3(posX, posY, posZ), new THREE.Vector3(CUBE_SIZE, CUBE_SIZE, CUBE_SIZE))
+            };
+
+            blocksMap.set(key, blockData);
+            lastPlacedBlockKey = key;
+
+            if (!isSpawnMode && !isTrackCamMode) selectBlock(key);
+
+            return blockData;
+        }
+
+        function findBestAlignmentRotation(gx, gy, gz, type) {
+            let targetNeighborDir = null;
+
+            if (lastPlacedBlockKey && blocksMap.has(lastPlacedBlockKey)) {
+                const prevBlock = blocksMap.get(lastPlacedBlockKey);
+                const prevGrid = prevBlock.gridPos;
+                const dirToPrev = new THREE.Vector3(prevGrid.x - gx, prevGrid.y - gy, prevGrid.z - gz);
+
+                if (Math.abs(dirToPrev.x) + Math.abs(dirToPrev.y) + Math.abs(dirToPrev.z) === 1) {
+                    targetNeighborDir = dirToPrev;
+                }
+            }
+
+            if (!targetNeighborDir) {
+                const neighbors = [
+                    { dir: new THREE.Vector3(1, 0, 0), key: `${gx+1},${gy},${gz}` },
+                    { dir: new THREE.Vector3(-1, 0, 0), key: `${gx-1},${gy},${gz}` },
+                    { dir: new THREE.Vector3(0, 1, 0), key: `${gx},${gy+1},${gz}` },
+                    { dir: new THREE.Vector3(0, -1, 0), key: `${gx},${gy-1},${gz}` },
+                    { dir: new THREE.Vector3(0, 0, 1), key: `${gx},${gy},${gz+1}` },
+                    { dir: new THREE.Vector3(0, 0, -1), key: `${gx},${gy},${gz-1}` }
+                ];
+
+                for (let n of neighbors) {
+                    if (blocksMap.has(n.key)) {
+                        targetNeighborDir = n.dir;
+                        break;
+                    }
+                }
+            }
+
+            if (!targetNeighborDir) return new THREE.Euler(0, 0, 0);
+
+            const HALF_PI = Math.PI / 2;
+            const testRotations = [
+                new THREE.Euler(0, 0, 0),
+                new THREE.Euler(0, HALF_PI, 0),
+                new THREE.Euler(0, Math.PI, 0),
+                new THREE.Euler(0, -HALF_PI, 0),
+                new THREE.Euler(HALF_PI, 0, 0),
+                new THREE.Euler(-HALF_PI, 0, 0)
+            ];
+
+            const tempMesh = createBlockMesh(type);
+
+            for (let r of testRotations) {
+                tempMesh.rotation.copy(r);
+                const ports = getBlockOpenWorldPorts({ mesh: tempMesh, type: type });
+
+                for (let p of ports) {
+                    if (p.dir.dot(targetNeighborDir) > 0.8) {
+                        return r;
+                    }
+                }
+            }
+
+            return new THREE.Euler(0, 0, 0);
+        }
+
+        function removeBlockByKey(key) {
+            if (!blocksMap.has(key)) return;
+            const block = blocksMap.get(key);
+            scene.remove(block.mesh);
+            blocksMap.delete(key);
+
+            if (selectedBlockKey === key) deselectBlock();
+            if (lastPlacedBlockKey === key) lastPlacedBlockKey = null;
+        }
+
+        function selectBlock(key) {
+            deselectBlock();
+            if (isSpawnMode || isTrackCamMode || !blocksMap.has(key)) return;
+
+            selectedBlockKey = key;
+            const block = blocksMap.get(key);
+
+            customGizmoGroup.position.copy(block.mesh.position);
+            customGizmoGroup.visible = true;
+
+            if (controls) controls.enabled = false;
+
+            document.getElementById('bottom-toolbar').classList.remove('hidden');
+            document.getElementById('toolbar-block-title').innerText = getBlockTypeName(block.type);
+        }
+
+        function deselectBlock() {
+            selectedBlockKey = null;
+            if (customGizmoGroup) customGizmoGroup.visible = false;
+
+            if (controls) controls.enabled = true;
+
+            document.getElementById('bottom-toolbar').classList.add('hidden');
+        }
+
+        function rotateSelectedBlock(axis) {
+            if (!selectedBlockKey || !blocksMap.has(selectedBlockKey)) return;
+            const block = blocksMap.get(selectedBlockKey);
+
+            const HALF_PI = Math.PI / 2;
+            const worldAxis = new THREE.Vector3();
+            if (axis === 'X') worldAxis.set(1, 0, 0);
+            if (axis === 'Y') worldAxis.set(0, 1, 0);
+            if (axis === 'Z') worldAxis.set(0, 0, 1);
+
+            block.mesh.rotateOnWorldAxis(worldAxis, HALF_PI);
+
+            const euler = block.mesh.rotation;
+            euler.x = Math.round(euler.x / HALF_PI) * HALF_PI;
+            euler.y = Math.round(euler.y / HALF_PI) * HALF_PI;
+            euler.z = Math.round(euler.z / HALF_PI) * HALF_PI;
+            block.mesh.rotation.copy(euler);
+
+            showToast(`已旋轉 ${axis} 軸 90°`);
+        }
+
+        function changeSelectedBlockType(newType) {
+            if (!selectedBlockKey || !blocksMap.has(selectedBlockKey)) return;
+            const block = blocksMap.get(selectedBlockKey);
+            const { x, y, z } = block.gridPos;
+            const rot = block.mesh.rotation.clone();
+
+            placeBlock(x, y, z, newType, rot, false);
+            showToast(`已替換為 ${getBlockTypeName(newType)}`);
+        }
+
+        function exportLayoutJson() {
+            const list = [];
+            blocksMap.forEach(b => {
+                list.push({
+                    g: [b.gridPos.x, b.gridPos.y, b.gridPos.z],
+                    t: b.type,
+                    r: [
+                        Math.round(b.mesh.rotation.x * 1000) / 1000,
+                        Math.round(b.mesh.rotation.y * 1000) / 1000,
+                        Math.round(b.mesh.rotation.z * 1000) / 1000
+                    ]
+                });
+            });
+            return JSON.stringify(list);
+        }
+
+        function importLayoutJson(jsonStr) {
+            try {
+                const list = JSON.parse(jsonStr);
+                if (!Array.isArray(list)) return false;
+
+                blocksMap.forEach((_, key) => removeBlockByKey(key));
+                marbles.forEach(m => scene.remove(m.mesh));
+                marbles = [];
+                deselectBlock();
+
+                list.forEach(item => {
+                    const [gx, gy, gz] = item.g;
+                    const type = item.t;
+                    const [rx, ry, rz] = item.r;
+                    const rot = new THREE.Euler(rx, ry, rz);
+                    placeBlock(gx, gy, gz, type, rot, false);
+                });
+
+                showToast(`成功載入 ${list.length} 個積木軌道！`);
+                return true;
+            } catch (e) {
+                showToast("代碼格式不正確，匯入失敗");
+                return false;
+            }
+        }
+
+        function copyShareUrl() {
+            const json = exportLayoutJson();
+            const b64 = btoa(encodeURIComponent(json));
+            const url = window.location.origin + window.location.pathname + '#data=' + b64;
+
+            navigator.clipboard.writeText(url).then(() => {
+                showToast("分享連結已複製到剪貼簿！");
+            }).catch(() => {
+                showToast("複製失敗，請手動複製網址");
+            });
+        }
+
+        function loadFromUrlHash() {
+            if (window.location.hash.startsWith('#data=')) {
+                try {
+                    const b64 = window.location.hash.replace('#data=', '');
+                    const json = decodeURIComponent(atob(b64));
+                    return importLayoutJson(json);
+                } catch (e) {
+                    return false;
+                }
+            }
+            return false;
+        }
+
+        function applyShellVisibility(group, hide) {
+            group.traverse(child => {
+                if (child.name === "GLASS_SHELL" || child.name === "GLASS_LINE") {
+                    child.visible = !hide;
+                }
+            });
+        }
+
+        function toggleAllShells() {
+            isHideShell = !isHideShell;
+            blocksMap.forEach(b => {
+                applyShellVisibility(b.mesh, isHideShell);
+            });
+
+            const btn = document.getElementById('btn-toggle-shell');
+            if (isHideShell) {
+                btn.classList.add('bg-cyan-500', 'text-gray-950');
+                showToast("外殼已隱藏：顯示透視管道內部與軌跡");
+            } else {
+                btn.classList.remove('bg-cyan-500', 'text-gray-950');
+                showToast("外殼顯示已恢復");
+            }
+        }
+
+        function updateOpenPortMarkers() {
+            openPortMarkers.forEach(m => scene.remove(m));
+            openPortMarkers = [];
+
+            blocksMap.forEach((block, key) => {
+                const portsData = getBlockOpenWorldPorts(block);
+                portsData.forEach(pData => {
+                    const neighborGrid = getNextGridPos(block.gridPos, pData.dir);
+                    const neighborKey = `${neighborGrid.x},${neighborGrid.y},${neighborGrid.z}`;
+
+                    if (!blocksMap.has(neighborKey)) {
+                        const ringGeo = new THREE.RingGeometry(0.1, PIPE_RADIUS * 0.9, 16);
+                        const ringMat = new THREE.MeshBasicMaterial({ color: 0xf59e0b, side: THREE.DoubleSide, depthTest: true, depthWrite: true });
+                        const marker = new THREE.Mesh(ringGeo, ringMat);
+                        marker.position.copy(pData.pos);
+                        marker.lookAt(pData.pos.clone().add(pData.dir));
+                        marker.userData = { isPortMarker: true, portPos: pData.pos, dir: pData.dir, blockKey: key };
+
+                        scene.add(marker);
+                        openPortMarkers.push(marker);
+                    }
+                });
+            });
+        }
+
+        function spawnMarbleAtPort(startWorldPos, startWorldDir, targetBlockKey) {
+            const block = blocksMap.get(targetBlockKey);
+            if (!block) return null;
+
+            const geo = new THREE.SphereGeometry(BALL_RADIUS, 24, 24);
+            const mat = new THREE.MeshStandardMaterial({
+                color: 0x38bdf8,
+                metalness: 0.9,
+                roughness: 0.1,
+                emissive: 0x0284c7,
+                emissiveIntensity: 0.6
+            });
+            const mesh = new THREE.Mesh(geo, mat);
+
+            block.mesh.add(mesh);
+
+            const pathInfo = getLocalPathPoints(block, startWorldPos, startWorldDir.clone().negate());
+            mesh.position.copy(pathInfo.localStart);
+
+            const marbleObj = {
+                mesh: mesh,
+                inPipe: true,
+                currentBlockKey: targetBlockKey,
+                localStart: pathInfo.localStart,
+                localEnd: pathInfo.localEnd,
+                localOutDir: pathInfo.localOutDir,
+                progress: 0,
+                speed: 0.045,
+                velocity: new THREE.Vector3(0, 0, 0),
+                active: true,
+                launchCooldownTimer: 0,
+                lastExitedPortKey: null,
+                entryWorldY: startWorldPos.y
+            };
+
+            marbles.push(marbleObj);
+
+            if (isTrackCamMode) {
+                trackingMarble = marbleObj;
+            }
+
+            return marbleObj;
+        }
+
+        function startCameraTracking(marble) {
+            trackingMarble = marble;
+            showToast("攝影機啟動跟隨！(拖曳畫面可解除跟隨)");
+        }
+
+        function stopCameraTracking() {
+            if (trackingMarble) {
+                trackingMarble = null;
+                showToast("攝影機跟隨已解除");
+            }
+        }
+
+        function updateCameraFollow() {
+            if (!trackingMarble || !trackingMarble.active || !isTrackCamMode) {
+                return;
+            }
+
+            const marbleWorldPos = new THREE.Vector3();
+            trackingMarble.mesh.getWorldPosition(marbleWorldPos);
+
+            controls.target.lerp(marbleWorldPos, 0.15);
+
+            const offset = new THREE.Vector3(0, 4.0, 6.0);
+            const targetCamPos = marbleWorldPos.clone().add(offset);
+            camera.position.lerp(targetCamPos, 0.15);
+        }
+
+        function checkPhysicalPortEntry(marble, marbleWorldPos, velocity) {
+            if (velocity.lengthSq() < 0.001) return null;
+
+            let entryPort = null;
+            let maxCaptureRadius = PIPE_RADIUS * 1.6;
+            const velNorm = velocity.clone().normalize();
+
+            blocksMap.forEach((block, key) => {
+                const ports = getBlockOpenWorldPorts(block);
+                ports.forEach(p => {
+                    const neighborGrid = getNextGridPos(block.gridPos, p.dir);
+                    const neighborKey = `${neighborGrid.x},${neighborGrid.y},${neighborGrid.z}`;
+
+                    if (!blocksMap.has(neighborKey)) {
+                        const portUniqueID = `${key}_${p.pos.x.toFixed(2)}_${p.pos.y.toFixed(2)}_${p.pos.z.toFixed(2)}`;
+
+                        if (marble.launchCooldownTimer > 0 && marble.lastExitedPortKey === portUniqueID) {
+                            return;
+                        }
+
+                        const distToPort = marbleWorldPos.distanceTo(p.pos);
+
+                        if (distToPort <= maxCaptureRadius) {
+                            const inwardDot = -velNorm.dot(p.dir);
+
+                            if (inwardDot > 0.15) {
+                                entryPort = { blockKey: key, portPos: p.pos, dir: p.dir, block };
+                            }
+                        }
+                    }
+                });
+            });
+
+            return entryPort;
+        }
+
+        // 【新增】：彈珠與彈珠之間的 3D 物理碰撞檢測與動能傳導
+        function handleMarbleToMarbleCollisions() {
+            const minDist = BALL_RADIUS * 2.0;
+
+            for (let i = 0; i < marbles.length; i++) {
+                for (let j = i + 1; j < marbles.length; j++) {
+                    const m1 = marbles[i];
+                    const m2 = marbles[j];
+
+                    if (!m1.active || !m2.active) continue;
+
+                    const pos1 = new THREE.Vector3();
+                    const pos2 = new THREE.Vector3();
+                    m1.mesh.getWorldPosition(pos1);
+                    m2.mesh.getWorldPosition(pos2);
+
+                    const dist = pos1.distanceTo(pos2);
+
+                    if (dist < minDist && dist > 0.0001) {
+                        const normal = new THREE.Vector3().subVectors(pos1, pos2).normalize();
+                        const overlap = minDist - dist;
+
+                        // 情況一：兩顆都在自由飛行/滾動狀態（完全 3D 彈性碰撞）
+                        if (!m1.inPipe && !m2.inPipe) {
+                            pos1.addScaledVector(normal, overlap * 0.5);
+                            pos2.addScaledVector(normal, -overlap * 0.5);
+                            m1.mesh.position.copy(pos1);
+                            m2.mesh.position.copy(pos2);
+
+                            const relativeVel = new THREE.Vector3().subVectors(m1.velocity, m2.velocity);
+                            const velAlongNormal = relativeVel.dot(normal);
+
+                            if (velAlongNormal < 0) {
+                                const restitution = 0.85; // 彈性係數
+                                const impulseMag = -(1 + restitution) * velAlongNormal / 2;
+                                const impulse = normal.clone().multiplyScalar(impulseMag);
+
+                                m1.velocity.add(impulse);
+                                m2.velocity.sub(impulse);
+                            }
+                        }
+                        // 情況二：一顆在管道內，另一顆撞上來（動能傳遞加速）
+                        else if (m1.inPipe && !m2.inPipe) {
+                            const impactForce = m2.velocity.length() * 0.005;
+                            m1.speed = Math.min(0.11, m1.speed + impactForce);
+                            m2.velocity.multiplyScalar(-0.4); // 撞擊後彈開
+                        } else if (!m1.inPipe && m2.inPipe) {
+                            const impactForce = m1.velocity.length() * 0.005;
+                            m2.speed = Math.min(0.11, m2.speed + impactForce);
+                            m1.velocity.multiplyScalar(-0.4);
+                        }
+                        // 情況三：兩顆都在同管道內追撞
+                        else if (m1.inPipe && m2.inPipe && m1.currentBlockKey === m2.currentBlockKey) {
+                            if (m1.progress < m2.progress) {
+                                m2.speed = Math.min(0.11, m2.speed + m1.speed * 0.5);
+                                m1.speed *= 0.5;
+                            } else {
+                                m1.speed = Math.min(0.11, m1.speed + m2.speed * 0.5);
+                                m2.speed *= 0.5;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        function updateMarbles(dt = 0.016) {
+            // 先計算球與球碰撞
+            handleMarbleToMarbleCollisions();
+
+            for (let i = marbles.length - 1; i >= 0; i--) {
+                const m = marbles[i];
+                if (!m.active) continue;
+
+                if (m.launchCooldownTimer > 0) {
+                    m.launchCooldownTimer--;
+                }
+
+                if (m.inPipe) {
+                    const block = blocksMap.get(m.currentBlockKey);
+                    if (!block) {
+                        m.inPipe = false;
+                        scene.add(m.mesh);
+                        m.velocity.set(0, -1, 0);
+                        continue;
+                    }
+
+                    const worldStart = block.mesh.localToWorld(m.localStart.clone());
+                    const worldEnd = block.mesh.localToWorld(m.localEnd.clone());
+                    const deltaY = worldEnd.y - worldStart.y;
+
+                    if (deltaY < -0.1) {
+                        m.speed += (Math.abs(deltaY) / CUBE_SIZE) * 0.0035;
+                    } else if (Math.abs(deltaY) <= 0.1) {
+                        m.speed *= 0.988;
+                        m.speed = Math.max(0.038, m.speed);
+                    } else {
+                        m.speed -= (deltaY / CUBE_SIZE) * 0.0035;
+                    }
+
+                    const maxPipeSpeed = 0.11;
+                    if (m.speed > maxPipeSpeed) {
+                        m.speed = maxPipeSpeed;
+                    }
+
+                    if (deltaY > 0.1 && m.speed <= 0.01) {
+                        const currentPeakLocal = m.mesh.position.clone();
+                        const newStart = currentPeakLocal;
+                        const newEnd = m.localStart.clone();
+
+                        let newOutDir = new THREE.Vector3().subVectors(newEnd, newStart).normalize();
+                        if (newOutDir.lengthSq() < 0.01) {
+                            newOutDir = m.localOutDir.clone().negate();
+                        }
+
+                        m.localStart.copy(newStart);
+                        m.localEnd.copy(newEnd);
+                        m.localOutDir.copy(newOutDir);
+
+                        m.progress = 0;
+                        m.speed = 0.005;
+                    }
+
+                    m.progress += m.speed;
+
+                    if (m.progress >= 1.0) {
+                        const worldOutDir = m.localOutDir.clone().applyEuler(block.mesh.rotation);
+                        const nextGrid = getNextGridPos(block.gridPos, worldOutDir);
+                        const nextKey = `${nextGrid.x},${nextGrid.y},${nextGrid.z}`;
+
+                        if (blocksMap.has(nextKey)) {
+                            const nextBlock = blocksMap.get(nextKey);
+                            const worldPos = block.mesh.localToWorld(m.localEnd.clone());
+
+                            block.mesh.remove(m.mesh);
+                            nextBlock.mesh.add(m.mesh);
+
+                            const nextPath = getLocalPathPoints(nextBlock, worldPos, worldOutDir);
+                            m.currentBlockKey = nextKey;
+                            m.localStart = nextPath.localStart;
+                            m.localEnd = nextPath.localEnd;
+                            m.localOutDir = nextPath.localOutDir;
+                            m.progress = 0;
+                        } else {
+                            const worldLaunchPos = block.mesh.localToWorld(m.localEnd.clone());
+                            block.mesh.remove(m.mesh);
+                            scene.add(m.mesh);
+
+                            m.inPipe = false;
+                            m.mesh.position.copy(worldLaunchPos);
+
+                            const launchSpeed = Math.min(10.0, Math.max(5.5, m.speed * 115));
+                            m.velocity.copy(worldOutDir).multiplyScalar(launchSpeed);
+
+                            m.lastExitedPortKey = `${m.currentBlockKey}_${worldLaunchPos.x.toFixed(2)}_${worldLaunchPos.y.toFixed(2)}_${worldLaunchPos.z.toFixed(2)}`;
+                            m.launchCooldownTimer = 22;
+                        }
+                    }
+
+                    if (m.inPipe) {
+                        setLocalInterpolatedPosition(block, m.mesh, m.localStart, m.localEnd, m.progress);
+                    }
+
+                } else {
+                    m.velocity.y -= GRAVITY * dt;
+
+                    const nextPos = m.mesh.position.clone().addScaledVector(m.velocity, dt);
+
+                    const physicalEntry = checkPhysicalPortEntry(m, nextPos, m.velocity);
+                    if (physicalEntry) {
+                        scene.remove(m.mesh);
+                        const targetBlock = physicalEntry.block;
+                        targetBlock.mesh.add(m.mesh);
+
+                        const pathInfo = getLocalPathPoints(targetBlock, physicalEntry.portPos, m.velocity);
+                        m.inPipe = true;
+                        m.currentBlockKey = physicalEntry.blockKey;
+                        m.localStart = pathInfo.localStart;
+                        m.localEnd = pathInfo.localEnd;
+                        m.localOutDir = pathInfo.localOutDir;
+                        m.progress = 0;
+
+                        const inheritSpeed = m.velocity.length() * 0.026;
+                        m.speed = Math.min(0.09, Math.max(0.045, inheritSpeed));
+
+                        showToast("彈珠已順利進入管道！");
+                        continue;
+                    }
+
+                    blocksMap.forEach((bData) => {
+                        const box = bData.box;
+                        const ballSphere = new THREE.Sphere(nextPos, BALL_RADIUS);
+
+                        if (box.intersectsSphere(ballSphere)) {
+                            const minX = box.min.x - BALL_RADIUS;
+                            const maxX = box.max.x + BALL_RADIUS;
+                            const minY = box.min.y - BALL_RADIUS;
+                            const maxY = box.max.y + BALL_RADIUS;
+                            const minZ = box.min.z - BALL_RADIUS;
+                            const maxZ = box.max.z + BALL_RADIUS;
+
+                            const dx1 = Math.abs(nextPos.x - minX);
+                            const dx2 = Math.abs(nextPos.x - maxX);
+                            const dy1 = Math.abs(nextPos.y - minY);
+                            const dy2 = Math.abs(nextPos.y - maxY);
+                            const dz1 = Math.abs(nextPos.z - minZ);
+                            const dz2 = Math.abs(nextPos.z - maxZ);
+
+                            const minDist = Math.min(dx1, dx2, dy1, dy2, dz1, dz2);
+
+                            if (minDist === dy2) {
+                                nextPos.y = box.max.y + BALL_RADIUS;
+                                m.velocity.y = 0;
+                                m.velocity.x *= 0.992;
+                                m.velocity.z *= 0.992;
+                            } else if (minDist === dy1) {
+                                nextPos.y = box.min.y - BALL_RADIUS;
+                                m.velocity.y = -m.velocity.y * 0.3;
+                            } else if (minDist === dx1) {
+                                nextPos.x = minX;
+                                m.velocity.x = -m.velocity.x * 0.4;
+                            } else if (minDist === dx2) {
+                                nextPos.x = maxX;
+                                m.velocity.x = -m.velocity.x * 0.4;
+                            } else if (minDist === dz1) {
+                                nextPos.z = minZ;
+                                m.velocity.z = -m.velocity.z * 0.4;
+                            } else if (minDist === dz2) {
+                                nextPos.z = maxZ;
+                                m.velocity.z = -m.velocity.z * 0.4;
+                            }
+                        }
+                    });
+
+                    m.mesh.position.copy(nextPos);
+
+                    const floorY = BALL_RADIUS;
+                    if (m.mesh.position.y <= floorY) {
+                        m.mesh.position.y = floorY;
+                        if (Math.abs(m.velocity.y) > 1.2) {
+                            m.velocity.y = -m.velocity.y * 0.35;
+                            m.velocity.x *= 0.85;
+                            m.velocity.z *= 0.85;
+                        } else {
+                            m.velocity.y = 0;
+                            m.velocity.x *= 0.990;
+                            m.velocity.z *= 0.990;
+                            if (m.velocity.lengthSq() < 0.005) {
+                                m.velocity.set(0, 0, 0);
+                            }
+                        }
+                    }
+
+                    if (m.mesh.position.y < -10) {
+                        if (trackingMarble === m) stopCameraTracking();
+                        scene.remove(m.mesh);
+                        marbles.splice(i, 1);
+                    }
+                }
+            }
+        }
+
+        function getLocalPathPoints(block, worldHitPos, worldInVel) {
+            const localHit = block.mesh.worldToLocal(worldHitPos.clone());
+            const localVel = worldInVel ? worldInVel.clone().applyQuaternion(block.mesh.quaternion.clone().invert()).normalize() : new THREE.Vector3(0, -1, 0);
+
+            let localStart = new THREE.Vector3();
+            let localEnd = new THREE.Vector3();
+            let localOutDir = new THREE.Vector3();
+
+            if (block.type === 'straight') {
+                const pA = new THREE.Vector3(0, 0, HALF_CUBE);
+                const pB = new THREE.Vector3(0, 0, -HALF_CUBE);
+                if (localHit.distanceTo(pA) < localHit.distanceTo(pB)) {
+                    localStart.copy(pA);
+                    localEnd.copy(pB);
+                    localOutDir.set(0, 0, -1);
+                } else {
+                    localStart.copy(pB);
+                    localEnd.copy(pA);
+                    localOutDir.set(0, 0, 1);
+                }
+            } else if (block.type === 'curved') {
+                const pA = new THREE.Vector3(0, 0, HALF_CUBE);
+                const pB = new THREE.Vector3(HALF_CUBE, 0, 0);
+                if (localHit.distanceTo(pA) < localHit.distanceTo(pB)) {
+                    localStart.copy(pA);
+                    localEnd.copy(pB);
+                    localOutDir.set(1, 0, 0);
+                } else {
+                    localStart.copy(pB);
+                    localEnd.copy(pA);
+                    localOutDir.set(0, 0, 1);
+                }
+            } else if (block.type === 'cross') {
+                const ports = [
+                    { pos: new THREE.Vector3(HALF_CUBE, 0, 0), dir: new THREE.Vector3(1, 0, 0) },
+                    { pos: new THREE.Vector3(-HALF_CUBE, 0, 0), dir: new THREE.Vector3(-1, 0, 0) },
+                    { pos: new THREE.Vector3(0, HALF_CUBE, 0), dir: new THREE.Vector3(0, 1, 0) },
+                    { pos: new THREE.Vector3(0, -HALF_CUBE, 0), dir: new THREE.Vector3(0, -1, 0) }
+                ];
+
+                let closest = ports[0];
+                let minDist = localHit.distanceTo(ports[0].pos);
+                for (let i = 1; i < ports.length; i++) {
+                    const dist = localHit.distanceTo(ports[i].pos);
+                    if (dist < minDist) {
+                        minDist = dist;
+                        closest = ports[i];
+                    }
+                }
+                localStart.copy(closest.pos);
+
+                let bestExit = null;
+                let maxDot = -Infinity;
+
+                for (let p of ports) {
+                    if (p === closest) continue;
+                    const dot = localVel.dot(p.dir);
+                    if (dot > maxDot) {
+                        maxDot = dot;
+                        bestExit = p;
+                    }
+                }
+
+                if (!bestExit) {
+                    bestExit = ports.find(p => p !== closest);
+                }
+
+                localEnd.copy(bestExit.pos);
+                localOutDir.copy(bestExit.dir);
+            }
+
+            return { localStart, localEnd, localOutDir };
+        }
+
+        function setLocalInterpolatedPosition(block, marbleMesh, localStart, localEnd, t) {
+            if (block.type === 'curved' || (block.type === 'cross' && localStart.dot(localEnd) >= -0.01)) {
+                const localMid = new THREE.Vector3(0, 0, 0);
+                marbleMesh.position.set(
+                    (1 - t) * (1 - t) * localStart.x + 2 * (1 - t) * t * localMid.x + t * t * localEnd.x,
+                    (1 - t) * (1 - t) * localStart.y + 2 * (1 - t) * t * localMid.y + t * t * localEnd.y,
+                    (1 - t) * (1 - t) * localStart.z + 2 * (1 - t) * t * localMid.z + t * t * localEnd.z
+                );
+            } else {
+                marbleMesh.position.lerpVectors(localStart, localEnd, t);
+            }
+        }
+
+        function getNextGridPos(curGrid, dir) {
+            return {
+                x: curGrid.x + Math.round(dir.x),
+                y: curGrid.y + Math.round(dir.y),
+                z: curGrid.z + Math.round(dir.z)
+            };
+        }
+
+        function getBlockOpenWorldPorts(block) {
+            const ports = [];
+            const pos = block.mesh.position;
+            let localPorts = [];
+
+            if (block.type === 'straight') {
+                localPorts.push({ pos: new THREE.Vector3(0, 0, HALF_CUBE), dir: new THREE.Vector3(0, 0, 1) });
+                localPorts.push({ pos: new THREE.Vector3(0, 0, -HALF_CUBE), dir: new THREE.Vector3(0, 0, -1) });
+            } else if (block.type === 'curved') {
+                localPorts.push({ pos: new THREE.Vector3(0, 0, HALF_CUBE), dir: new THREE.Vector3(0, 0, 1) });
+                localPorts.push({ pos: new THREE.Vector3(HALF_CUBE, 0, 0), dir: new THREE.Vector3(1, 0, 0) });
+            } else if (block.type === 'cross') {
+                localPorts.push({ pos: new THREE.Vector3(HALF_CUBE, 0, 0), dir: new THREE.Vector3(1, 0, 0) });
+                localPorts.push({ pos: new THREE.Vector3(-HALF_CUBE, 0, 0), dir: new THREE.Vector3(-1, 0, 0) });
+                localPorts.push({ pos: new THREE.Vector3(0, HALF_CUBE, 0), dir: new THREE.Vector3(0, 1, 0) });
+                localPorts.push({ pos: new THREE.Vector3(0, -HALF_CUBE, 0), dir: new THREE.Vector3(0, -1, 0) });
+            }
+
+            localPorts.forEach(lp => {
+                const worldP = lp.pos.clone().applyEuler(block.mesh.rotation).add(pos);
+                const worldD = lp.dir.clone().applyEuler(block.mesh.rotation);
+                ports.push({ pos: worldP, dir: worldD });
+            });
+
+            return ports;
+        }
+
+        function setupEvents() {
+            const container = document.getElementById('canvas-container');
+
+            container.addEventListener('pointerdown', (e) => {
+                mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+                mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+                raycaster.setFromCamera(mouse, camera);
+
+                if (isSpawnMode || isTrackCamMode) {
+                    if (openPortMarkers.length > 0) {
+                        const intersectsMarkers = raycaster.intersectObjects(openPortMarkers);
+                        if (intersectsMarkers.length > 0) {
+                            ignoreTouchStartForTracking = true;
+                            const hitObj = intersectsMarkers[0].object;
+                            spawnMarbleAtPort(hitObj.userData.portPos, hitObj.userData.dir, hitObj.userData.blockKey);
+                            showToast("彈珠已放入管道！");
+                        }
+                    }
+                    return;
+                }
+
+                if (customGizmoGroup.visible) {
+                    const intersectsGizmo = raycaster.intersectObjects(customGizmoGroup.children, true);
+                    if (intersectsGizmo.length > 0) {
+                        let obj = intersectsGizmo[0].object;
+                        while (obj.parent && !obj.userData.axis) obj = obj.parent;
+                        if (obj && obj.userData.axis) {
+                            activeGizmoAxis = obj.userData.axis;
+                            dragPlane.setFromNormalAndCoplanarPoint(
+                                camera.getWorldDirection(new THREE.Vector3()).negate(),
+                                customGizmoGroup.position
+                            );
+                            return;
+                        }
+                    }
+                }
+
+                const allMeshes = [];
+                blocksMap.forEach(b => allMeshes.push(b.mesh));
+                const intersectsBlocks = raycaster.intersectObjects(allMeshes, true);
+
+                if (intersectsBlocks.length > 0) {
+                    let obj = intersectsBlocks[0].object;
+                    while (obj.parent && obj.parent.type === "Group" && !obj.userData.isBlockGroup) obj = obj.parent;
+
+                    for (let [key, block] of blocksMap.entries()) {
+                        if (block.mesh === obj) {
+                            selectBlock(key);
+                            return;
+                        }
+                    }
+                } else {
+                    deselectBlock();
+                }
+            });
+
+            container.addEventListener('pointermove', (e) => {
+                if (!isSpawnMode && !isTrackCamMode && activeGizmoAxis && selectedBlockKey && blocksMap.has(selectedBlockKey)) {
+                    mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+                    mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+                    raycaster.setFromCamera(mouse, camera);
+
+                    if (raycaster.ray.intersectPlane(dragPlane, planeIntersect)) {
+                        const block = blocksMap.get(selectedBlockKey);
+                        const curPos = block.mesh.position;
+
+                        let targetX = curPos.x;
+                        let targetY = curPos.y;
+                        let targetZ = curPos.z;
+
+                        if (activeGizmoAxis === 'X') targetX = planeIntersect.x;
+                        if (activeGizmoAxis === 'Y') targetY = planeIntersect.y;
+                        if (activeGizmoAxis === 'Z') targetZ = planeIntersect.z;
+
+                        const gx = Math.round(targetX / CUBE_SIZE + GRID_SIZE / 2 - 0.5);
+                        const gy = Math.max(0, Math.round(targetY / CUBE_SIZE - 0.5));
+                        const gz = Math.round(targetZ / CUBE_SIZE + GRID_SIZE / 2 - 0.5);
+
+                        const targetKey = `${gx},${gy},${gz}`;
+                        if (targetKey !== selectedBlockKey && !blocksMap.has(targetKey) && gx >= 0 && gx < GRID_SIZE && gz >= 0 && gz < GRID_SIZE) {
+                            const type = block.type;
+                            const rot = block.mesh.rotation.clone();
+                            removeBlockByKey(selectedBlockKey);
+                            placeBlock(gx, gy, gz, type, rot, false);
+                        }
+                    }
+                }
+            });
+
+            window.addEventListener('pointerup', () => {
+                if (activeGizmoAxis) {
+                    activeGizmoAxis = null;
+                }
+            });
+        }
+
+        function toggleTrackCamMode(forceState = null) {
+            const trackBtn = document.getElementById('btn-track-cam');
+            isTrackCamMode = forceState !== null ? forceState : !isTrackCamMode;
+
+            if (isTrackCamMode) {
+                if (isSpawnMode) toggleSpawnMode(false);
+                trackBtn.classList.remove('text-purple-300');
+                trackBtn.classList.add('bg-purple-500', 'text-gray-950', 'font-bold');
+                deselectBlock();
+                updateOpenPortMarkers();
+                showToast("追蹤攝影模式已開啟：點擊入口投放彈珠開始追蹤");
+            } else {
+                trackBtn.classList.remove('bg-purple-500', 'text-gray-950', 'font-bold');
+                trackBtn.classList.add('text-purple-300');
+                trackingMarble = null;
+                if (!isSpawnMode) {
+                    openPortMarkers.forEach(m => scene.remove(m));
+                    openPortMarkers = [];
+                }
+            }
+        }
+
+        function toggleSpawnMode(forceState = null) {
+            const spawnBtn = document.getElementById('btn-spawn-mode');
+            isSpawnMode = forceState !== null ? forceState : !isSpawnMode;
+
+            if (isSpawnMode) {
+                if (isTrackCamMode) toggleTrackCamMode(false);
+                spawnBtn.classList.remove('text-amber-300', 'bg-amber-500/10');
+                spawnBtn.classList.add('bg-amber-500', 'text-gray-950', 'font-bold');
+                deselectBlock();
+                updateOpenPortMarkers();
+                showToast("放彈珠模式：點擊黃色亮環投放彈珠");
+            } else {
+                spawnBtn.classList.remove('bg-amber-500', 'text-gray-950', 'font-bold');
+                spawnBtn.classList.add('text-amber-300', 'bg-amber-500/10');
+                if (!isTrackCamMode) {
+                    openPortMarkers.forEach(m => scene.remove(m));
+                    openPortMarkers = [];
+                }
+                showToast("編輯模式：點擊積木可進行 3D 移動與旋轉");
+            }
+        }
+
+        function setupUIControls() {
+            const mainBlockBtn = document.getElementById('btn-main-block');
+            const typeMenu = document.getElementById('block-type-menu');
+            const shareModal = document.getElementById('share-modal');
+
+            mainBlockBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                typeMenu.classList.toggle('hidden');
+            });
+
+            document.querySelectorAll('.type-opt-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const type = btn.getAttribute('data-type');
+                    setMainBlockType(type);
+                    typeMenu.classList.add('hidden');
+
+                    if (selectedBlockKey && !isSpawnMode && !isTrackCamMode) {
+                        changeSelectedBlockType(type);
+                    } else {
+                        spawnNewBlockImmediately(type);
+                    }
+                });
+            });
+
+            document.getElementById('btn-share-menu').addEventListener('click', () => {
+                shareModal.classList.remove('hidden');
+            });
+
+            document.getElementById('btn-close-modal').addEventListener('click', () => {
+                shareModal.classList.add('hidden');
+            });
+
+            document.getElementById('btn-copy-url').addEventListener('click', () => {
+                copyShareUrl();
+                shareModal.classList.add('hidden');
+            });
+
+            document.getElementById('btn-copy-json').addEventListener('click', () => {
+                const json = exportLayoutJson();
+                navigator.clipboard.writeText(json).then(() => {
+                    showToast("JSON 代碼已複製！");
+                });
+                shareModal.classList.add('hidden');
+            });
+
+            document.getElementById('btn-import-prompt').addEventListener('click', () => {
+                const jsonStr = prompt("請貼上他人分享的積木 JSON 代碼：");
+                if (jsonStr) {
+                    importLayoutJson(jsonStr);
+                }
+                shareModal.classList.add('hidden');
+            });
+
+            document.getElementById('btn-toggle-shell').addEventListener('click', toggleAllShells);
+            document.getElementById('btn-rot-x').addEventListener('click', () => rotateSelectedBlock('X'));
+            document.getElementById('btn-rot-y').addEventListener('click', () => rotateSelectedBlock('Y'));
+            document.getElementById('btn-rot-z').addEventListener('click', () => rotateSelectedBlock('Z'));
+
+            document.getElementById('btn-delete-block').addEventListener('click', () => {
+                if (selectedBlockKey) removeBlockByKey(selectedBlockKey);
+            });
+
+            document.getElementById('btn-clear-all').addEventListener('click', () => {
+                blocksMap.forEach((_, key) => removeBlockByKey(key));
+                marbles.forEach(m => scene.remove(m.mesh));
+                marbles = [];
+                deselectBlock();
+                stopCameraTracking();
+                lastPlacedBlockKey = null;
+                showToast("已清空場景");
+            });
+
+            document.getElementById('btn-reset-cam').addEventListener('click', () => {
+                stopCameraTracking();
+                camera.position.set(12, 14, 16);
+                controls.target.set(0, 1, 0);
+            });
+
+            document.getElementById('btn-spawn-mode').addEventListener('click', () => toggleSpawnMode());
+            document.getElementById('btn-track-cam').addEventListener('click', () => toggleTrackCamMode());
+        }
+
+        function setMainBlockType(type) {
+            currentBlockType = type;
+            const iconContainer = document.getElementById('main-block-icon');
+            if (type === 'straight') {
+                iconContainer.innerHTML = `<i data-lucide="move-horizontal" class="w-6 h-6"></i>`;
+            } else if (type === 'curved') {
+                iconContainer.innerHTML = `<i data-lucide="corner-down-right" class="w-6 h-6"></i>`;
+            } else if (type === 'cross') {
+                iconContainer.innerHTML = `<i data-lucide="plus" class="w-6 h-6"></i>`;
+            }
+            if (window.lucide) lucide.createIcons();
+        }
+
+        function getBlockTypeName(type) {
+            if (type === 'straight') return "直管積木";
+            if (type === 'curved') return "彎管積木";
+            if (type === 'cross') return "兩軸十字管";
+            return "積木";
+        }
+
+        function showToast(text) {
+            const toast = document.getElementById('toast-msg');
+            document.getElementById('toast-text').innerText = text;
+            toast.classList.remove('opacity-0');
+            clearTimeout(window.toastTimer);
+            window.toastTimer = setTimeout(() => toast.classList.add('opacity-0'), 2500);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            updateMarbles(0.016);
+            updateCameraFollow();
+
+            if (controls) controls.update();
+            if (renderer && scene && camera) renderer.render(scene, camera);
+        }
+    </script>
+</body>
+</html>
