@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>𓃥 白六管道積木 - 透明預設與計數版</title>
+    <title>𓃥 白六管道積木 - 介面防遮蔽優化版</title>
 
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -77,8 +77,8 @@
         </div>
     </div>
 
-    <!-- 左下角積木計數面板 -->
-    <div class="fixed bottom-6 left-6 z-20 pointer-events-none">
+    <!-- 左下角積木計數面板（具備防遮蔽淡出動畫） -->
+    <div id="block-count-panel" class="fixed bottom-6 left-6 z-20 pointer-events-none transition-all duration-300">
         <div class="glass-panel rounded-2xl px-3.5 py-2 flex items-center space-x-2 border border-cyan-500/30 shadow-xl bg-gray-900/90">
             <i data-lucide="blocks" class="w-4 h-4 text-cyan-400"></i>
             <span class="text-xs font-bold text-gray-200 tracking-wide">積木數：<span id="block-count-num" class="text-cyan-300 font-extrabold text-sm">0</span></span>
@@ -149,8 +149,8 @@
         </div>
     </div>
 
-    <!-- 底部選取工具列 -->
-    <div id="bottom-toolbar" class="fixed bottom-6 left-32 z-20 transition-all duration-300 pointer-events-auto pr-20 hidden">
+    <!-- 底部選取/旋轉工具列 -->
+    <div id="bottom-toolbar" class="fixed bottom-6 left-6 z-20 transition-all duration-300 pointer-events-auto pr-20 hidden">
         <div class="glass-panel rounded-3xl p-2 border border-cyan-500/40 shadow-2xl bg-gray-900/95 flex items-center space-x-2">
             <div class="flex items-center space-x-1.5 pl-1">
                 <div class="w-7 h-7 rounded-xl bg-cyan-500/20 border border-cyan-400/40 flex items-center justify-center text-cyan-300">
@@ -238,7 +238,6 @@
             <span id="main-block-label" class="text-[10px] font-bold tracking-tight text-cyan-200">新增積木</span>
         </button>
     </div>
-
     <script>
         const GRID_SIZE = 10;
         const CUBE_SIZE = 2.0;
@@ -256,7 +255,7 @@
         let isSpawnMode = false;
         let isTrackCamMode = false;
         let trackingMarble = null;
-        let isHideShell = true; // 【關鍵修正】：開頭即預設隱藏積木外殼（透明管道呈現）
+        let isHideShell = true; // 開放即預設隱藏積木外殼 (透明管道呈現)
         let ignoreTouchStartForTracking = false;
 
         let openPortMarkers = [];
@@ -643,6 +642,7 @@
             if (lastPlacedBlockKey === key) lastPlacedBlockKey = null;
         }
 
+        // 選取積木邏輯：開啟工具列 + 淡出隱藏積木數計數器
         function selectBlock(key) {
             deselectBlock();
             if (isSpawnMode || isTrackCamMode || !blocksMap.has(key)) return;
@@ -657,8 +657,14 @@
 
             document.getElementById('bottom-toolbar').classList.remove('hidden');
             document.getElementById('toolbar-block-title').innerText = getBlockTypeName(block.type);
+
+            const countPanel = document.getElementById('block-count-panel');
+            if (countPanel) {
+                countPanel.classList.add('opacity-0', 'pointer-events-none');
+            }
         }
 
+        // 取消選取邏輯：隱藏工具列 + 恢復顯示積木數計數器
         function deselectBlock() {
             selectedBlockKey = null;
             if (customGizmoGroup) customGizmoGroup.visible = false;
@@ -666,6 +672,11 @@
             if (controls) controls.enabled = true;
 
             document.getElementById('bottom-toolbar').classList.add('hidden');
+
+            const countPanel = document.getElementById('block-count-panel');
+            if (countPanel) {
+                countPanel.classList.remove('opacity-0', 'pointer-events-none');
+            }
         }
 
         function rotateSelectedBlock(axis) {
