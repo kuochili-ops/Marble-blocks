@@ -246,8 +246,11 @@
         let openPortMarkers = [];
         let customGizmoGroup = null;
         let activeGizmoAxis = null;
-        let dragPlane = new THREE.Plane();
-        let planeIntersect = new THREE.Vector3();
+        let initialGizmoStartPos = new THREE.Vector3();
+        let initialBlockStartGrid = { x: 0, y: 0, z: 0 };
+
+        let pointerDownPos = new THREE.Vector2();
+        let isDraggingGesture = false;
 
         const raycaster = new THREE.Raycaster();
         const mouse = new THREE.Vector2();
@@ -339,10 +342,10 @@
 
             function makeArrow(color, rot) {
                 const group = new THREE.Group();
-                const cyl = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 1.2), new THREE.MeshBasicMaterial({ color, depthTest: false }));
-                cyl.position.y = 0.6;
-                const cone = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.4, 12), new THREE.MeshBasicMaterial({ color, depthTest: false }));
-                cone.position.y = 1.4;
+                const cyl = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 1.4), new THREE.MeshBasicMaterial({ color, depthTest: false }));
+                cyl.position.y = 0.7;
+                const cone = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.5, 12), new THREE.MeshBasicMaterial({ color, depthTest: false }));
+                cone.position.y = 1.65;
                 group.add(cyl);
                 group.add(cone);
                 group.rotation.copy(rot);
@@ -845,7 +848,6 @@
             return entryPort;
         }
 
-        // 【新增】：彈珠與彈珠之間的 3D 物理碰撞檢測與動能傳導
         function handleMarbleToMarbleCollisions() {
             const minDist = BALL_RADIUS * 2.0;
 
@@ -867,7 +869,6 @@
                         const normal = new THREE.Vector3().subVectors(pos1, pos2).normalize();
                         const overlap = minDist - dist;
 
-                        // 情況一：兩顆都在自由飛行/滾動狀態（完全 3D 彈性碰撞）
                         if (!m1.inPipe && !m2.inPipe) {
                             pos1.addScaledVector(normal, overlap * 0.5);
                             pos2.addScaledVector(normal, -overlap * 0.5);
@@ -878,7 +879,7 @@
                             const velAlongNormal = relativeVel.dot(normal);
 
                             if (velAlongNormal < 0) {
-                                const restitution = 0.85; // 彈性係數
+                                const restitution = 0.85;
                                 const impulseMag = -(1 + restitution) * velAlongNormal / 2;
                                 const impulse = normal.clone().multiplyScalar(impulseMag);
 
@@ -886,17 +887,15 @@
                                 m2.velocity.sub(impulse);
                             }
                         }
-                        // 情況二：一顆在管道內，另一顆撞上來（動能傳遞加速）
                         else if (m1.inPipe && !m2.inPipe) {
                             const impactForce = m2.velocity.length() * 0.005;
                             m1.speed = Math.min(0.11, m1.speed + impactForce);
-                            m2.velocity.multiplyScalar(-0.4); // 撞擊後彈開
+                            m2.velocity.multiplyScalar(-0.4);
                         } else if (!m1.inPipe && m2.inPipe) {
                             const impactForce = m1.velocity.length() * 0.005;
                             m2.speed = Math.min(0.11, m2.speed + impactForce);
                             m1.velocity.multiplyScalar(-0.4);
                         }
-                        // 情況三：兩顆都在同管道內追撞
                         else if (m1.inPipe && m2.inPipe && m1.currentBlockKey === m2.currentBlockKey) {
                             if (m1.progress < m2.progress) {
                                 m2.speed = Math.min(0.11, m2.speed + m1.speed * 0.5);
@@ -912,7 +911,6 @@
         }
 
         function updateMarbles(dt = 0.016) {
-            // 先計算球與球碰撞
             handleMarbleToMarbleCollisions();
 
             for (let i = marbles.length - 1; i >= 0; i--) {
@@ -1233,6 +1231,91 @@
             const container = document.getElementById('canvas-container');
 
             container.addEventListener('pointerdown', (e) => {
+                pointerDownPos.set(e.clientX, e.clientY);
+                isDraggingGesture = false;
+
+                mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+                mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+                raycaster.setFromCamera(mouse, camera);
+
+                if (customGizmoGroup.visible) {
+                    const intersectsGizmo = raycaster.intersectObjects(customGizmoGroup.children, true);
+                    if (intersectsGizmo.length > 0) {
+                        let obj = intersectsGizmo[0].object;
+                        while (obj.parent && !obj.userData.axis) obj = obj.parent;
+                        if (obj && obj.userData.axis) {
+                            activeGizmoAxis = obj.userData.axis;
+                            initialGizmoStartPos.copy(customGizmoGroup.position);
+                            const currentBlock = blocksMap.get(selectedBlockKey);
+                            if (currentBlock) {
+                                initialBlockStartGrid = { ...currentBlock.gridPos };
+                            }
+                            return;
+                        }
+                    }
+                }
+            });
+
+            container.addEventListener('pointermove', (e) => {
+                if (pointerDownPos.distanceTo(new THREE.Vector2(e.clientX, e.clientY)) > 6) {
+                    isDraggingGesture = true;
+                }
+
+                // 【關鍵修正】：正確方向對齊算式，確保積木跟隨手指方向移動
+                if (activeGizmoAxis && selectedBlockKey && blocksMap.has(selectedBlockKey)) {
+                    const deltaX = (e.clientX - pointerDownPos.x);
+                    const deltaY = (e.clientY - pointerDownPos.y);
+
+                    const camDir = new THREE.Vector3();
+                    camera.getWorldDirection(camDir);
+
+                    let moveSteps = 0;
+                    const sensitivity = 0.015;
+
+                    if (activeGizmoAxis === 'Y') {
+                        // 手指向上滑動 (deltaY < 0) 表示向上抬升 (moveSteps > 0)
+                        moveSteps = Math.round(-deltaY * sensitivity);
+                    } else if (activeGizmoAxis === 'X') {
+                        const rightSign = (camDir.z > 0 ? -1 : 1);
+                        moveSteps = Math.round(deltaX * sensitivity * rightSign);
+                    } else if (activeGizmoAxis === 'Z') {
+                        const forwardSign = (camDir.x > 0 ? 1 : -1);
+                        moveSteps = Math.round(deltaX * sensitivity * forwardSign);
+                    }
+
+                    if (moveSteps !== 0) {
+                        let targetGx = initialBlockStartGrid.x;
+                        let targetGy = initialBlockStartGrid.y;
+                        let targetGz = initialBlockStartGrid.z;
+
+                        if (activeGizmoAxis === 'X') targetGx += moveSteps;
+                        if (activeGizmoAxis === 'Y') targetGy += moveSteps;
+                        if (activeGizmoAxis === 'Z') targetGz += moveSteps;
+
+                        targetGy = Math.max(0, targetGy);
+                        targetGx = Math.max(0, Math.min(GRID_SIZE - 1, targetGx));
+                        targetGz = Math.max(0, Math.min(GRID_SIZE - 1, targetGz));
+
+                        const targetKey = `${targetGx},${targetGy},${targetGz}`;
+                        if (targetKey !== selectedBlockKey && !blocksMap.has(targetKey)) {
+                            const block = blocksMap.get(selectedBlockKey);
+                            const type = block.type;
+                            const rot = block.mesh.rotation.clone();
+                            removeBlockByKey(selectedBlockKey);
+                            placeBlock(targetGx, targetGy, targetGz, type, rot, false);
+                        }
+                    }
+                }
+            });
+
+            container.addEventListener('pointerup', (e) => {
+                if (activeGizmoAxis) {
+                    activeGizmoAxis = null;
+                    return;
+                }
+
+                if (isDraggingGesture) return;
+
                 mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
                 mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
                 raycaster.setFromCamera(mouse, camera);
@@ -1250,29 +1333,18 @@
                     return;
                 }
 
-                if (customGizmoGroup.visible) {
-                    const intersectsGizmo = raycaster.intersectObjects(customGizmoGroup.children, true);
-                    if (intersectsGizmo.length > 0) {
-                        let obj = intersectsGizmo[0].object;
-                        while (obj.parent && !obj.userData.axis) obj = obj.parent;
-                        if (obj && obj.userData.axis) {
-                            activeGizmoAxis = obj.userData.axis;
-                            dragPlane.setFromNormalAndCoplanarPoint(
-                                camera.getWorldDirection(new THREE.Vector3()).negate(),
-                                customGizmoGroup.position
-                            );
-                            return;
-                        }
-                    }
-                }
+                const shellMeshes = [];
+                blocksMap.forEach(b => {
+                    b.mesh.traverse(child => {
+                        if (child.name === "GLASS_SHELL") shellMeshes.push(child);
+                    });
+                });
 
-                const allMeshes = [];
-                blocksMap.forEach(b => allMeshes.push(b.mesh));
-                const intersectsBlocks = raycaster.intersectObjects(allMeshes, true);
+                const intersectsBlocks = raycaster.intersectObjects(shellMeshes, false);
 
                 if (intersectsBlocks.length > 0) {
                     let obj = intersectsBlocks[0].object;
-                    while (obj.parent && obj.parent.type === "Group" && !obj.userData.isBlockGroup) obj = obj.parent;
+                    while (obj.parent && !obj.userData.isBlockGroup) obj = obj.parent;
 
                     for (let [key, block] of blocksMap.entries()) {
                         if (block.mesh === obj) {
@@ -1282,45 +1354,6 @@
                     }
                 } else {
                     deselectBlock();
-                }
-            });
-
-            container.addEventListener('pointermove', (e) => {
-                if (!isSpawnMode && !isTrackCamMode && activeGizmoAxis && selectedBlockKey && blocksMap.has(selectedBlockKey)) {
-                    mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
-                    mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
-                    raycaster.setFromCamera(mouse, camera);
-
-                    if (raycaster.ray.intersectPlane(dragPlane, planeIntersect)) {
-                        const block = blocksMap.get(selectedBlockKey);
-                        const curPos = block.mesh.position;
-
-                        let targetX = curPos.x;
-                        let targetY = curPos.y;
-                        let targetZ = curPos.z;
-
-                        if (activeGizmoAxis === 'X') targetX = planeIntersect.x;
-                        if (activeGizmoAxis === 'Y') targetY = planeIntersect.y;
-                        if (activeGizmoAxis === 'Z') targetZ = planeIntersect.z;
-
-                        const gx = Math.round(targetX / CUBE_SIZE + GRID_SIZE / 2 - 0.5);
-                        const gy = Math.max(0, Math.round(targetY / CUBE_SIZE - 0.5));
-                        const gz = Math.round(targetZ / CUBE_SIZE + GRID_SIZE / 2 - 0.5);
-
-                        const targetKey = `${gx},${gy},${gz}`;
-                        if (targetKey !== selectedBlockKey && !blocksMap.has(targetKey) && gx >= 0 && gx < GRID_SIZE && gz >= 0 && gz < GRID_SIZE) {
-                            const type = block.type;
-                            const rot = block.mesh.rotation.clone();
-                            removeBlockByKey(selectedBlockKey);
-                            placeBlock(gx, gy, gz, type, rot, false);
-                        }
-                    }
-                }
-            });
-
-            window.addEventListener('pointerup', () => {
-                if (activeGizmoAxis) {
-                    activeGizmoAxis = null;
                 }
             });
         }
