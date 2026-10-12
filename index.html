@@ -3,13 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>𓃥 白六管道積木</title>
+    <title>𓃥 白六管道積木 - 動能爆發版</title>
 
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
-    <!-- 引入 LZ-String 高效字串壓縮庫 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.5.0/lz-string.min.js"></script>
 
     <style>
@@ -48,6 +47,7 @@
 
     <div id="canvas-container"></div>
 
+    <!-- 頂部控制列 -->
     <div class="relative z-10 p-3 flex justify-between items-center pointer-events-none">
         <div class="glass-panel rounded-2xl px-3 py-2 flex items-center space-x-2 pointer-events-auto shadow-lg border border-white/10">
             <div class="w-3 h-3 rounded-full bg-cyan-400 animate-pulse"></div>
@@ -77,6 +77,7 @@
         </div>
     </div>
 
+    <!-- 分享選單 -->
     <div id="share-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm pointer-events-auto">
         <div class="glass-panel rounded-3xl p-5 max-w-sm w-full border border-cyan-500/40 shadow-2xl bg-gray-900/95 flex flex-col space-y-4">
             <div class="flex justify-between items-center border-b border-white/10 pb-3">
@@ -96,8 +97,8 @@
                             <i data-lucide="link" class="w-4 h-4"></i>
                         </div>
                         <div>
-                            <div class="text-xs font-bold text-gray-100">複製高壓縮分享連結</div>
-                            <div class="text-[9px] text-gray-400">極短網址，方便發送分享</div>
+                            <div class="text-xs font-bold text-gray-100">複製分享連結</div>
+                            <div class="text-[9px] text-gray-400">高壓縮極短網址</div>
                         </div>
                     </div>
                     <i data-lucide="chevron-right" class="w-4 h-4 text-gray-400"></i>
@@ -132,6 +133,7 @@
         </div>
     </div>
 
+    <!-- 提示氣泡 -->
     <div id="toast-msg" class="relative z-20 mx-auto -mt-1 opacity-0 transition-opacity duration-300 pointer-events-none max-w-xs text-center">
         <div class="glass-panel px-3.5 py-1.5 rounded-full text-xs text-cyan-300 bg-cyan-950/80 border border-cyan-500/40 shadow-xl inline-flex items-center space-x-1.5">
             <i data-lucide="info" class="w-4 h-4"></i>
@@ -139,6 +141,7 @@
         </div>
     </div>
 
+    <!-- 底部選取工具列 -->
     <div id="bottom-toolbar" class="fixed bottom-6 left-3 z-20 transition-all duration-300 pointer-events-auto pr-20 hidden">
         <div class="glass-panel rounded-3xl p-2 border border-cyan-500/40 shadow-2xl bg-gray-900/95 flex items-center space-x-2">
             <div class="flex items-center space-x-1.5 pl-1">
@@ -174,8 +177,9 @@
         </div>
     </div>
 
+    <!-- 右下角積木選單鍵 -->
     <div class="fixed bottom-6 right-6 z-30 flex flex-col items-end pointer-events-auto">
-        <div id="block-type-menu" class="hidden glass-panel rounded-3xl p-2 mb-3 border border-cyan-500/30 shadow-2xl bg-gray-900/95 flex flex-col space-y-2 min-w-[170px]">
+        <div id="block-type-menu" class="hidden glass-panel rounded-3xl p-2 mb-3 border border-cyan-500/30 shadow-2xl bg-gray-900/95 flex flex-col space-y-2 min-w-[180px]">
             <div class="text-[10px] font-bold text-gray-400 px-2 py-0.5 border-b border-white/10 uppercase tracking-wider">選擇預設積木種類</div>
 
             <button data-type="straight" class="type-opt-btn glass-panel p-2 rounded-2xl flex items-center space-x-3 hover:bg-cyan-500/20 active:scale-95 text-left transition">
@@ -205,6 +209,16 @@
                 <div>
                     <div class="text-xs font-bold text-gray-100">十字管積木</div>
                     <div class="text-[9px] text-gray-400">兩軸平面十字交叉</div>
+                </div>
+            </button>
+
+            <button data-type="lift" class="type-opt-btn glass-panel p-2 rounded-2xl flex items-center space-x-3 hover:bg-emerald-500/20 active:scale-95 text-left transition border border-emerald-500/30">
+                <div class="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center text-emerald-300">
+                    <i data-lucide="arrow-up-circle" class="w-4 h-4"></i>
+                </div>
+                <div>
+                    <div class="text-xs font-bold text-gray-100">螺旋升降梯 🌀</div>
+                    <div class="text-[9px] text-emerald-400 font-medium">底端自動推升至頂端</div>
                 </div>
             </button>
         </div>
@@ -240,9 +254,11 @@
         let openPortMarkers = [];
         let customGizmoGroup = null;
         let activeGizmoAxis = null;
+
+        let dragPlane = new THREE.Plane();
+        let planeIntersect = new THREE.Vector3();
         let initialGizmoStartPos = new THREE.Vector3();
         let initialBlockStartGrid = { x: 0, y: 0, z: 0 };
-
         let pointerDownPos = new THREE.Vector2();
         let isDraggingGesture = false;
 
@@ -315,6 +331,7 @@
             materials.pipeStraight = new THREE.MeshStandardMaterial({ color: 0x38bdf8, emissive: 0x0284c7, emissiveIntensity: 0.4, roughness: 0.2, side: THREE.DoubleSide, transparent: true, opacity: 0.65, depthWrite: true });
             materials.pipeCurved = new THREE.MeshStandardMaterial({ color: 0xf472b6, emissive: 0xdb2777, emissiveIntensity: 0.4, roughness: 0.2, side: THREE.DoubleSide, transparent: true, opacity: 0.65, depthWrite: true });
             materials.pipeCross = new THREE.MeshStandardMaterial({ color: 0xfacc15, emissive: 0xca8a04, emissiveIntensity: 0.4, roughness: 0.2, side: THREE.DoubleSide, transparent: true, opacity: 0.65, depthWrite: true });
+            materials.pipeLift = new THREE.MeshStandardMaterial({ color: 0x10b981, emissive: 0x059669, emissiveIntensity: 0.5, roughness: 0.2, side: THREE.DoubleSide, transparent: true, opacity: 0.65, depthWrite: true });
             materials.portRing = new THREE.MeshBasicMaterial({ color: 0xf59e0b, depthWrite: true, depthTest: true });
 
             window.addEventListener('resize', onWindowResize);
@@ -379,6 +396,7 @@
             let pipeMat = materials.pipeStraight;
             if (type === 'curved') pipeMat = materials.pipeCurved;
             if (type === 'cross') pipeMat = materials.pipeCross;
+            if (type === 'lift') pipeMat = materials.pipeLift;
 
             if (type === 'straight') {
                 const cylGeo = new THREE.CylinderGeometry(PIPE_RADIUS, PIPE_RADIUS, CUBE_SIZE, 16, 1, true);
@@ -418,6 +436,48 @@
 
                 createPortRing(group, HALF_CUBE, 0, 0, 0, Math.PI / 2, 0);
                 createPortRing(group, -HALF_CUBE, 0, 0, 0, -Math.PI / 2, 0);
+                createPortRing(group, 0, HALF_CUBE, 0, -Math.PI / 2, 0, 0);
+                createPortRing(group, 0, -HALF_CUBE, 0, Math.PI / 2, 0, 0);
+
+            } else if (type === 'lift') {
+                const cylGeo = new THREE.CylinderGeometry(PIPE_RADIUS, PIPE_RADIUS, CUBE_SIZE, 16, 1, true);
+                const pipeVertical = new THREE.Mesh(cylGeo, pipeMat);
+                pipeVertical.name = "PIPE_BODY";
+                group.add(pipeVertical);
+
+                const spiralGroup = new THREE.Group();
+                spiralGroup.name = "SPIRAL_MECHANISM";
+
+                const curvePoints = [];
+                const turns = 2.5;
+                const pointsCount = 60;
+                for (let i = 0; i <= pointsCount; i++) {
+                    const t = i / pointsCount;
+                    const angle = t * Math.PI * 2 * turns;
+                    const y = (t - 0.5) * CUBE_SIZE;
+                    const r = PIPE_RADIUS * 0.7;
+                    curvePoints.push(new THREE.Vector3(Math.cos(angle) * r, y, Math.sin(angle) * r));
+                }
+                const spiralCurve = new THREE.CatmullRomCurve3(curvePoints);
+                const spiralGeo = new THREE.TubeGeometry(spiralCurve, 40, 0.08, 8, false);
+                const spiralMat = new THREE.MeshStandardMaterial({
+                    color: 0x34d399,
+                    emissive: 0x10b981,
+                    emissiveIntensity: 0.8,
+                    metalness: 0.8,
+                    roughness: 0.2
+                });
+                const spiralMesh = new THREE.Mesh(spiralGeo, spiralMat);
+                spiralGroup.add(spiralMesh);
+
+                const shaft = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.08, 0.08, CUBE_SIZE, 12),
+                    new THREE.MeshStandardMaterial({ color: 0x059669, metalness: 0.9, roughness: 0.1 })
+                );
+                spiralGroup.add(shaft);
+
+                group.add(spiralGroup);
+
                 createPortRing(group, 0, HALF_CUBE, 0, -Math.PI / 2, 0, 0);
                 createPortRing(group, 0, -HALF_CUBE, 0, Math.PI / 2, 0, 0);
             }
@@ -619,11 +679,10 @@
             showToast(`已替換為 ${getBlockTypeName(newType)}`);
         }
 
-        // 精簡 JSON 數據結構
         function exportLayoutJson() {
             const list = [];
             blocksMap.forEach(b => {
-                const typeCode = b.type === 'straight' ? 's' : (b.type === 'curved' ? 'c' : 'x');
+                const typeCode = b.type === 'straight' ? 's' : (b.type === 'curved' ? 'c' : (b.type === 'cross' ? 'x' : 'l'));
                 list.push([
                     b.gridPos.x, b.gridPos.y, b.gridPos.z,
                     typeCode,
@@ -658,6 +717,7 @@
                     let type = 'straight';
                     if (typeCode === 'c' || typeCode === 'curved') type = 'curved';
                     if (typeCode === 'x' || typeCode === 'cross') type = 'cross';
+                    if (typeCode === 'l' || typeCode === 'lift') type = 'lift';
 
                     const HALF_PI = Math.PI / 2;
                     const rot = new THREE.Euler(
@@ -676,7 +736,6 @@
             }
         }
 
-        // 【極致縮短連結】：結合 LZ-String 壓縮與內建結構精簡
         function copyShareUrl() {
             const json = exportLayoutJson();
             const compressed = LZString.compressToEncodedURIComponent(json);
@@ -786,7 +845,7 @@
                 localEnd: pathInfo.localEnd,
                 localOutDir: pathInfo.localOutDir,
                 progress: 0,
-                speed: 0.045,
+                speed: 0.06,
                 velocity: new THREE.Vector3(0, 0, 0),
                 active: true,
                 launchCooldownTimer: 0,
@@ -801,11 +860,6 @@
             }
 
             return marbleObj;
-        }
-
-        function startCameraTracking(marble) {
-            trackingMarble = marble;
-            showToast("攝影機啟動跟隨！(拖曳畫面可解除跟隨)");
         }
 
         function stopCameraTracking() {
@@ -834,7 +888,7 @@
             if (velocity.lengthSq() < 0.001) return null;
 
             let entryPort = null;
-            let maxCaptureRadius = PIPE_RADIUS * 1.6;
+            let maxCaptureRadius = PIPE_RADIUS * 2.2;
             const velNorm = velocity.clone().normalize();
 
             blocksMap.forEach((block, key) => {
@@ -854,8 +908,7 @@
 
                         if (distToPort <= maxCaptureRadius) {
                             const inwardDot = -velNorm.dot(p.dir);
-
-                            if (inwardDot > 0.15) {
+                            if (inwardDot > -0.2) {
                                 entryPort = { blockKey: key, portPos: p.pos, dir: p.dir, block };
                             }
                         }
@@ -907,19 +960,19 @@
                         }
                         else if (m1.inPipe && !m2.inPipe) {
                             const impactForce = m2.velocity.length() * 0.005;
-                            m1.speed = Math.min(0.11, m1.speed + impactForce);
+                            m1.speed = Math.min(0.14, m1.speed + impactForce);
                             m2.velocity.multiplyScalar(-0.4);
                         } else if (!m1.inPipe && m2.inPipe) {
                             const impactForce = m1.velocity.length() * 0.005;
-                            m2.speed = Math.min(0.11, m2.speed + impactForce);
+                            m2.speed = Math.min(0.14, m2.speed + impactForce);
                             m1.velocity.multiplyScalar(-0.4);
                         }
                         else if (m1.inPipe && m2.inPipe && m1.currentBlockKey === m2.currentBlockKey) {
                             if (m1.progress < m2.progress) {
-                                m2.speed = Math.min(0.11, m2.speed + m1.speed * 0.5);
+                                m2.speed = Math.min(0.14, m2.speed + m1.speed * 0.5);
                                 m1.speed *= 0.5;
                             } else {
-                                m1.speed = Math.min(0.11, m1.speed + m2.speed * 0.5);
+                                m1.speed = Math.min(0.14, m1.speed + m2.speed * 0.5);
                                 m2.speed *= 0.5;
                             }
                         }
@@ -930,6 +983,15 @@
 
         function updateMarbles(dt = 0.016) {
             handleMarbleToMarbleCollisions();
+
+            blocksMap.forEach(b => {
+                if (b.type === 'lift') {
+                    const mechanism = b.mesh.getObjectByName("SPIRAL_MECHANISM");
+                    if (mechanism) {
+                        mechanism.rotation.y += 0.08;
+                    }
+                }
+            });
 
             for (let i = marbles.length - 1; i >= 0; i--) {
                 const m = marbles[i];
@@ -948,43 +1010,32 @@
                         continue;
                     }
 
-                    const worldStart = block.mesh.localToWorld(m.localStart.clone());
-                    const worldEnd = block.mesh.localToWorld(m.localEnd.clone());
-                    const deltaY = worldEnd.y - worldStart.y;
-
-                    if (deltaY < -0.1) {
-                        m.speed += (Math.abs(deltaY) / CUBE_SIZE) * 0.0035;
-                    } else if (Math.abs(deltaY) <= 0.1) {
-                        m.speed *= 0.988;
-                        m.speed = Math.max(0.038, m.speed);
+                    if (block.type === 'lift') {
+                        // 調高螺旋梯內部上升推進速度
+                        m.speed = 0.055;
+                        m.progress += m.speed;
                     } else {
-                        m.speed -= (deltaY / CUBE_SIZE) * 0.0035;
-                    }
+                        const worldStart = block.mesh.localToWorld(m.localStart.clone());
+                        const worldEnd = block.mesh.localToWorld(m.localEnd.clone());
+                        const deltaY = worldEnd.y - worldStart.y;
 
-                    const maxPipeSpeed = 0.11;
-                    if (m.speed > maxPipeSpeed) {
-                        m.speed = maxPipeSpeed;
-                    }
-
-                    if (deltaY > 0.1 && m.speed <= 0.01) {
-                        const currentPeakLocal = m.mesh.position.clone();
-                        const newStart = currentPeakLocal;
-                        const newEnd = m.localStart.clone();
-
-                        let newOutDir = new THREE.Vector3().subVectors(newEnd, newStart).normalize();
-                        if (newOutDir.lengthSq() < 0.01) {
-                            newOutDir = m.localOutDir.clone().negate();
+                        if (deltaY < -0.1) {
+                            m.speed += (Math.abs(deltaY) / CUBE_SIZE) * 0.0035;
+                        } else if (Math.abs(deltaY) <= 0.1) {
+                            // 【關鍵動力加強】：彎管與水平管內維持強勁的基礎速度下限 (0.065)
+                            m.speed *= 0.996;
+                            m.speed = Math.max(0.065, m.speed);
+                        } else {
+                            m.speed -= (deltaY / CUBE_SIZE) * 0.0035;
                         }
 
-                        m.localStart.copy(newStart);
-                        m.localEnd.copy(newEnd);
-                        m.localOutDir.copy(newOutDir);
+                        const maxPipeSpeed = 0.14;
+                        if (m.speed > maxPipeSpeed) {
+                            m.speed = maxPipeSpeed;
+                        }
 
-                        m.progress = 0;
-                        m.speed = 0.005;
+                        m.progress += m.speed;
                     }
-
-                    m.progress += m.speed;
 
                     if (m.progress >= 1.0) {
                         const worldOutDir = m.localOutDir.clone().applyEuler(block.mesh.rotation);
@@ -1004,6 +1055,40 @@
                             m.localEnd = nextPath.localEnd;
                             m.localOutDir = nextPath.localOutDir;
                             m.progress = 0;
+                            
+                            m.speed = Math.max(0.065, m.speed);
+                        } else if (block.type === 'lift') {
+                            const topGrid = { x: block.gridPos.x, y: block.gridPos.y + 1, z: block.gridPos.z };
+                            const topKey = `${topGrid.x},${topGrid.y},${topGrid.z}`;
+
+                            if (blocksMap.has(topKey)) {
+                                const topBlock = blocksMap.get(topKey);
+                                const worldPos = block.mesh.localToWorld(m.localEnd.clone());
+
+                                block.mesh.remove(m.mesh);
+                                topBlock.mesh.add(m.mesh);
+
+                                const nextPath = getLocalPathPoints(topBlock, worldPos, new THREE.Vector3(0, 1, 0));
+                                m.currentBlockKey = topKey;
+                                m.localStart = nextPath.localStart;
+                                m.localEnd = nextPath.localEnd;
+                                m.localOutDir = nextPath.localOutDir;
+                                m.progress = 0;
+                                
+                                // 【動能爆發修正】：由升降梯進入彎管時，注入 0.095 的爆發進彎速度！
+                                m.speed = 0.095;
+                            } else {
+                                const worldLaunchPos = block.mesh.localToWorld(m.localEnd.clone());
+                                block.mesh.remove(m.mesh);
+                                scene.add(m.mesh);
+
+                                m.inPipe = false;
+                                m.mesh.position.copy(worldLaunchPos);
+                                m.velocity.set(0, 6.0, 0);
+
+                                m.lastExitedPortKey = `${m.currentBlockKey}_${worldLaunchPos.x.toFixed(2)}_${worldLaunchPos.y.toFixed(2)}_${worldLaunchPos.z.toFixed(2)}`;
+                                m.launchCooldownTimer = 18;
+                            }
                         } else {
                             const worldLaunchPos = block.mesh.localToWorld(m.localEnd.clone());
                             block.mesh.remove(m.mesh);
@@ -1012,11 +1097,11 @@
                             m.inPipe = false;
                             m.mesh.position.copy(worldLaunchPos);
 
-                            const launchSpeed = Math.min(10.0, Math.max(5.5, m.speed * 115));
+                            const launchSpeed = Math.min(11.0, Math.max(6.0, m.speed * 120));
                             m.velocity.copy(worldOutDir).multiplyScalar(launchSpeed);
 
                             m.lastExitedPortKey = `${m.currentBlockKey}_${worldLaunchPos.x.toFixed(2)}_${worldLaunchPos.y.toFixed(2)}_${worldLaunchPos.z.toFixed(2)}`;
-                            m.launchCooldownTimer = 22;
+                            m.launchCooldownTimer = 18;
                         }
                     }
 
@@ -1043,8 +1128,8 @@
                         m.localOutDir = pathInfo.localOutDir;
                         m.progress = 0;
 
-                        const inheritSpeed = m.velocity.length() * 0.026;
-                        m.speed = Math.min(0.09, Math.max(0.045, inheritSpeed));
+                        const inheritSpeed = m.velocity.length() * 0.028;
+                        m.speed = Math.min(0.10, Math.max(0.06, inheritSpeed));
 
                         showToast("彈珠已順利進入管道！");
                         continue;
@@ -1192,6 +1277,11 @@
 
                 localEnd.copy(bestExit.pos);
                 localOutDir.copy(bestExit.dir);
+
+            } else if (block.type === 'lift') {
+                localStart.set(0, -HALF_CUBE, 0);
+                localEnd.set(0, HALF_CUBE, 0);
+                localOutDir.set(0, 1, 0);
             }
 
             return { localStart, localEnd, localOutDir };
@@ -1204,6 +1294,14 @@
                     (1 - t) * (1 - t) * localStart.x + 2 * (1 - t) * t * localMid.x + t * t * localEnd.x,
                     (1 - t) * (1 - t) * localStart.y + 2 * (1 - t) * t * localMid.y + t * t * localEnd.y,
                     (1 - t) * (1 - t) * localStart.z + 2 * (1 - t) * t * localMid.z + t * t * localEnd.z
+                );
+            } else if (block.type === 'lift') {
+                const angle = t * Math.PI * 2 * 2.5;
+                const r = PIPE_RADIUS * 0.45;
+                marbleMesh.position.set(
+                    Math.cos(angle) * r,
+                    (t - 0.5) * CUBE_SIZE,
+                    Math.sin(angle) * r
                 );
             } else {
                 marbleMesh.position.lerpVectors(localStart, localEnd, t);
@@ -1232,6 +1330,9 @@
             } else if (block.type === 'cross') {
                 localPorts.push({ pos: new THREE.Vector3(HALF_CUBE, 0, 0), dir: new THREE.Vector3(1, 0, 0) });
                 localPorts.push({ pos: new THREE.Vector3(-HALF_CUBE, 0, 0), dir: new THREE.Vector3(-1, 0, 0) });
+                localPorts.push({ pos: new THREE.Vector3(0, HALF_CUBE, 0), dir: new THREE.Vector3(0, 1, 0) });
+                localPorts.push({ pos: new THREE.Vector3(0, -HALF_CUBE, 0), dir: new THREE.Vector3(0, -1, 0) });
+            } else if (block.type === 'lift') {
                 localPorts.push({ pos: new THREE.Vector3(0, HALF_CUBE, 0), dir: new THREE.Vector3(0, 1, 0) });
                 localPorts.push({ pos: new THREE.Vector3(0, -HALF_CUBE, 0), dir: new THREE.Vector3(0, -1, 0) });
             }
@@ -1268,6 +1369,11 @@
                             if (currentBlock) {
                                 initialBlockStartGrid = { ...currentBlock.gridPos };
                             }
+
+                            dragPlane.setFromNormalAndCoplanarPoint(
+                                camera.getWorldDirection(new THREE.Vector3()).negate(),
+                                customGizmoGroup.position
+                            );
                             return;
                         }
                     }
@@ -1280,33 +1386,27 @@
                 }
 
                 if (activeGizmoAxis && selectedBlockKey && blocksMap.has(selectedBlockKey)) {
-                    const deltaX = (e.clientX - pointerDownPos.x);
-                    const deltaY = (e.clientY - pointerDownPos.y);
+                    mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+                    mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+                    raycaster.setFromCamera(mouse, camera);
 
-                    const camDir = new THREE.Vector3();
-                    camera.getWorldDirection(camDir);
+                    if (raycaster.ray.intersectPlane(dragPlane, planeIntersect)) {
+                        const deltaPlane = planeIntersect.clone().sub(initialGizmoStartPos);
 
-                    let moveSteps = 0;
-                    const sensitivity = 0.015;
-
-                    if (activeGizmoAxis === 'Y') {
-                        moveSteps = Math.round(-deltaY * sensitivity);
-                    } else if (activeGizmoAxis === 'X') {
-                        const rightSign = (camDir.z > 0 ? -1 : 1);
-                        moveSteps = Math.round(deltaX * sensitivity * rightSign);
-                    } else if (activeGizmoAxis === 'Z') {
-                        const forwardSign = (camDir.x > 0 ? 1 : -1);
-                        moveSteps = Math.round(deltaX * sensitivity * forwardSign);
-                    }
-
-                    if (moveSteps !== 0) {
                         let targetGx = initialBlockStartGrid.x;
                         let targetGy = initialBlockStartGrid.y;
                         let targetGz = initialBlockStartGrid.z;
 
-                        if (activeGizmoAxis === 'X') targetGx += moveSteps;
-                        if (activeGizmoAxis === 'Y') targetGy += moveSteps;
-                        if (activeGizmoAxis === 'Z') targetGz += moveSteps;
+                        if (activeGizmoAxis === 'X') {
+                            const steps = Math.round(deltaPlane.x / CUBE_SIZE);
+                            targetGx += steps;
+                        } else if (activeGizmoAxis === 'Y') {
+                            const steps = Math.round(deltaPlane.y / CUBE_SIZE);
+                            targetGy += steps;
+                        } else if (activeGizmoAxis === 'Z') {
+                            const steps = Math.round(deltaPlane.z / CUBE_SIZE);
+                            targetGz += steps;
+                        }
 
                         targetGy = Math.max(0, targetGy);
                         targetGx = Math.max(0, Math.min(GRID_SIZE - 1, targetGx));
@@ -1509,6 +1609,8 @@
                 iconContainer.innerHTML = `<i data-lucide="corner-down-right" class="w-6 h-6"></i>`;
             } else if (type === 'cross') {
                 iconContainer.innerHTML = `<i data-lucide="plus" class="w-6 h-6"></i>`;
+            } else if (type === 'lift') {
+                iconContainer.innerHTML = `<i data-lucide="arrow-up-circle" class="w-6 h-6 text-emerald-400"></i>`;
             }
             if (window.lucide) lucide.createIcons();
         }
@@ -1517,6 +1619,7 @@
             if (type === 'straight') return "直管積木";
             if (type === 'curved') return "彎管積木";
             if (type === 'cross') return "兩軸十字管";
+            if (type === 'lift') return "螺旋升降梯";
             return "積木";
         }
 
