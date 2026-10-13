@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>𓃥 白六管道積木 - 介面防遮蔽優化版</title>
+    <title>𓃥 白六管道積木 - 真·阿基米德螺旋被動托升版</title>
 
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -226,7 +226,7 @@
                 </div>
                 <div>
                     <div class="text-xs font-bold text-gray-100">螺旋升降梯 🌀</div>
-                    <div class="text-[9px] text-emerald-400 font-medium">底端自動推升至頂端</div>
+                    <div class="text-[9px] text-emerald-400 font-medium">阿基米德螺旋被動推升</div>
                 </div>
             </button>
         </div>
@@ -463,18 +463,19 @@
                 const spiralGroup = new THREE.Group();
                 spiralGroup.name = "SPIRAL_MECHANISM";
 
+                // 阿基米德螺旋葉片結構
                 const curvePoints = [];
-                const turns = 2.5;
-                const pointsCount = 60;
+                const turns = 3.0; 
+                const pointsCount = 80;
                 for (let i = 0; i <= pointsCount; i++) {
                     const t = i / pointsCount;
                     const angle = t * Math.PI * 2 * turns;
                     const y = (t - 0.5) * CUBE_SIZE;
-                    const r = PIPE_RADIUS * 0.7;
+                    const r = PIPE_RADIUS * 0.65;
                     curvePoints.push(new THREE.Vector3(Math.cos(angle) * r, y, Math.sin(angle) * r));
                 }
                 const spiralCurve = new THREE.CatmullRomCurve3(curvePoints);
-                const spiralGeo = new THREE.TubeGeometry(spiralCurve, 40, 0.08, 8, false);
+                const spiralGeo = new THREE.TubeGeometry(spiralCurve, 60, 0.12, 8, false);
                 const spiralMat = new THREE.MeshStandardMaterial({
                     color: 0x34d399,
                     emissive: 0x10b981,
@@ -486,7 +487,7 @@
                 spiralGroup.add(spiralMesh);
 
                 const shaft = new THREE.Mesh(
-                    new THREE.CylinderGeometry(0.08, 0.08, CUBE_SIZE, 12),
+                    new THREE.CylinderGeometry(0.1, 0.1, CUBE_SIZE, 12),
                     new THREE.MeshStandardMaterial({ color: 0x059669, metalness: 0.9, roughness: 0.1 })
                 );
                 spiralGroup.add(shaft);
@@ -642,13 +643,12 @@
             if (lastPlacedBlockKey === key) lastPlacedBlockKey = null;
         }
 
-        // 選取積木邏輯：開啟工具列 + 淡出隱藏積木數計數器
         function selectBlock(key) {
             deselectBlock();
             if (isSpawnMode || isTrackCamMode || !blocksMap.has(key)) return;
 
             selectedBlockKey = key;
-            const block = blocksMap.get(key);
+            const block = blocksMap.get(selectedBlockKey);
 
             customGizmoGroup.position.copy(block.mesh.position);
             customGizmoGroup.visible = true;
@@ -664,7 +664,6 @@
             }
         }
 
-        // 取消選取邏輯：隱藏工具列 + 恢復顯示積木數計數器
         function deselectBlock() {
             selectedBlockKey = null;
             if (customGizmoGroup) customGizmoGroup.visible = false;
@@ -678,7 +677,6 @@
                 countPanel.classList.remove('opacity-0', 'pointer-events-none');
             }
         }
-
         function rotateSelectedBlock(axis) {
             if (!selectedBlockKey || !blocksMap.has(selectedBlockKey)) return;
             const block = blocksMap.get(selectedBlockKey);
@@ -1044,7 +1042,9 @@
                     }
 
                     if (block.type === 'lift') {
-                        m.speed = 0.055;
+                        // 升降梯推進與螺旋轉速（0.08 / 3.0圈）完全同步
+                        const LIFT_SPEED = 0.08 / (3.0 * Math.PI * 2);
+                        m.speed = LIFT_SPEED;
                         m.progress += m.speed;
                     } else {
                         const worldStart = block.mesh.localToWorld(m.localStart.clone());
@@ -1094,7 +1094,7 @@
 
                             if (blocksMap.has(topKey)) {
                                 const topBlock = blocksMap.get(topKey);
-                                const worldPos = block.mesh.localToWorld(m.localEnd.clone());
+                                const worldPos = block.mesh.localToWorld(new THREE.Vector3(0, HALF_CUBE, 0));
 
                                 block.mesh.remove(m.mesh);
                                 topBlock.mesh.add(m.mesh);
@@ -1106,15 +1106,15 @@
                                 m.localOutDir = nextPath.localOutDir;
                                 m.progress = 0;
                                 
-                                m.speed = 0.095;
+                                m.speed = 0.08;
                             } else {
-                                const worldLaunchPos = block.mesh.localToWorld(m.localEnd.clone());
+                                const worldLaunchPos = block.mesh.localToWorld(new THREE.Vector3(0, HALF_CUBE, 0));
                                 block.mesh.remove(m.mesh);
                                 scene.add(m.mesh);
 
                                 m.inPipe = false;
                                 m.mesh.position.copy(worldLaunchPos);
-                                m.velocity.set(0, 6.0, 0);
+                                m.velocity.set(0, 5.0, 0);
 
                                 m.lastExitedPortKey = `${m.currentBlockKey}_${worldLaunchPos.x.toFixed(2)}_${worldLaunchPos.y.toFixed(2)}_${worldLaunchPos.z.toFixed(2)}`;
                                 m.launchCooldownTimer = 18;
@@ -1309,7 +1309,8 @@
                 localOutDir.copy(bestExit.dir);
 
             } else if (block.type === 'lift') {
-                localStart.set(0, -HALF_CUBE, 0);
+                // 【關鍵修正】：升降梯起點設定在底部螺旋葉片溝槽半徑處，非正中央
+                localStart.set(PIPE_RADIUS * 0.38, -HALF_CUBE, 0);
                 localEnd.set(0, HALF_CUBE, 0);
                 localOutDir.set(0, 1, 0);
             }
@@ -1317,6 +1318,7 @@
             return { localStart, localEnd, localOutDir };
         }
 
+        // 真·阿基米德螺旋被動托升位置計算
         function setLocalInterpolatedPosition(block, marbleMesh, localStart, localEnd, t) {
             if (block.type === 'curved' || (block.type === 'cross' && localStart.dot(localEnd) >= -0.01)) {
                 const localMid = new THREE.Vector3(0, 0, 0);
@@ -1326,12 +1328,22 @@
                     (1 - t) * (1 - t) * localStart.z + 2 * (1 - t) * t * localMid.z + t * t * localEnd.z
                 );
             } else if (block.type === 'lift') {
-                const angle = t * Math.PI * 2 * 2.5;
-                const r = PIPE_RADIUS * 0.45;
+                const turns = 3.0;
+                const mechanism = block.mesh.getObjectByName("SPIRAL_MECHANISM");
+                const currentRotY = mechanism ? mechanism.rotation.y : 0;
+
+                // 【真·阿基米德被動托升演算法】
+                // 彈珠角度與高度 t 呈螺旋線性關係，並減去轉軸旋轉角，使其死死「卡」在螺旋葉片凹槽中
+                const spiralAngle = (t * turns * Math.PI * 2) - currentRotY;
+                const radius = PIPE_RADIUS * 0.38; // 緊貼螺旋槽半徑，絕不溢出管壁
+
+                // Y 軸高度由底部 (-HALF_CUBE) 到頂部 (HALF_CUBE) 漸進
+                const posY = -HALF_CUBE + t * CUBE_SIZE;
+
                 marbleMesh.position.set(
-                    Math.cos(angle) * r,
-                    (t - 0.5) * CUBE_SIZE,
-                    Math.sin(angle) * r
+                    Math.cos(spiralAngle) * radius,
+                    posY,
+                    Math.sin(spiralAngle) * radius
                 );
             } else {
                 marbleMesh.position.lerpVectors(localStart, localEnd, t);
